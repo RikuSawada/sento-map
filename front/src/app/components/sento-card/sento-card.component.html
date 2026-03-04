@@ -1,0 +1,21 @@
+<div class="card" (click)="cardClick.emit(sento)" role="button" tabindex="0"
+     (keydown.enter)="cardClick.emit(sento)" (keydown.space)="cardClick.emit(sento)">
+  <div class="card__header">
+    @if (ward) {
+      <span class="card__ward">{{ ward }}</span>
+    }
+    <h3 class="card__name">{{ sento.name }}</h3>
+  </div>
+  <div class="card__body">
+    <p class="card__address">📍 {{ sento.address }}</p>
+    @if (sento.openHours) {
+      <p class="card__hours">🕐 {{ sento.openHours }}</p>
+    }
+    @if (sento.holiday) {
+      <p class="card__holiday">🗓 定休：{{ sento.holiday }}</p>
+    }
+  </div>
+  <div class="card__footer">
+    <span class="card__cta">詳細を見る →</span>
+  </div>
+</div>

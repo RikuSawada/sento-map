@@ -1,0 +1,20 @@
+<div class="review-list">
+  @if (reviews.length === 0) {
+    <p class="review-list__empty">まだ口コミはありません</p>
+  } @else {
+    @for (review of reviews; track review.id) {
+      <div class="review-item">
+        <div class="review-item__header">
+          <span class="review-item__username">{{ review.username }}</span>
+          <span class="review-item__stars" aria-label="評価 {{ review.rating }} 点">
+            {{ stars(review.rating) }}
+          </span>
+          <span class="review-item__date">{{ formatDate(review.createdAt) }}</span>
+        </div>
+        @if (review.comment) {
+          <p class="review-item__comment">{{ review.comment }}</p>
+        }
+      </div>
+    }
+  }
+</div>

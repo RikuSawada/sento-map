@@ -1,0 +1,58 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(*)",
+      "Write(*)",
+
+      "Bash(uv sync*)",
+      "Bash(uv run *)",
+      "Bash(uv add *)",
+      "Bash(uv remove *)",
+      "Bash(pip install*)",
+      "Bash(pip list*)",
+
+      "Bash(npm install*)",
+      "Bash(npm start)",
+      "Bash(npm test)",
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(ng *)",
+
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit*)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git branch*)",
+      "Bash(git fetch*)",
+      "Bash(git pull*)",
+      "Bash(git stash*)",
+      "Bash(git restore *)",
+
+      "Bash(ls*)",
+      "Bash(pwd)",
+      "Bash(echo *)",
+      "Bash(cat *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+
+      "Bash(python *)",
+      "Bash(which *)",
+      "Bash(env)",
+      "Bash(psql *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(sudo *)",
+      "Bash(chmod 777 *)",
+      "Bash(DROP *)",
+      "Bash(dropdb *)"
+    ]
+  }
+}

@@ -1,0 +1,98 @@
+<div class="register-container">
+  <div class="register-card">
+    <h1 class="title">新規登録</h1>
+
+    @if (errorMessage()) {
+      <div class="error-banner" role="alert">{{ errorMessage() }}</div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="form-group">
+        <label for="username" class="label">ユーザー名</label>
+        <input
+          id="username"
+          type="text"
+          class="input"
+          formControlName="username"
+          autocomplete="username"
+          placeholder="2〜50文字"
+          [class.input--error]="usernameControl.invalid && usernameControl.touched"
+        />
+        @if (usernameControl.touched && usernameControl.hasError('required')) {
+          <span class="field-error">ユーザー名を入力してください</span>
+        } @else if (usernameControl.touched && usernameControl.hasError('minlength')) {
+          <span class="field-error">ユーザー名は2文字以上で入力してください</span>
+        } @else if (usernameControl.touched && usernameControl.hasError('maxlength')) {
+          <span class="field-error">ユーザー名は50文字以内で入力してください</span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="email" class="label">メールアドレス</label>
+        <input
+          id="email"
+          type="email"
+          class="input"
+          formControlName="email"
+          autocomplete="email"
+          placeholder="example@mail.com"
+          [class.input--error]="emailControl.invalid && emailControl.touched"
+        />
+        @if (emailControl.touched && emailControl.hasError('required')) {
+          <span class="field-error">メールアドレスを入力してください</span>
+        } @else if (emailControl.touched && emailControl.hasError('email')) {
+          <span class="field-error">正しいメールアドレスを入力してください</span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="label">パスワード</label>
+        <input
+          id="password"
+          type="password"
+          class="input"
+          formControlName="password"
+          autocomplete="new-password"
+          placeholder="8文字以上"
+          [class.input--error]="passwordControl.invalid && passwordControl.touched"
+        />
+        @if (passwordControl.touched && passwordControl.hasError('required')) {
+          <span class="field-error">パスワードを入力してください</span>
+        } @else if (passwordControl.touched && passwordControl.hasError('minlength')) {
+          <span class="field-error">パスワードは8文字以上で入力してください</span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="passwordConfirm" class="label">パスワード（確認）</label>
+        <input
+          id="passwordConfirm"
+          type="password"
+          class="input"
+          formControlName="passwordConfirm"
+          autocomplete="new-password"
+          placeholder="パスワードを再入力"
+          [class.input--error]="(passwordConfirmControl.invalid && passwordConfirmControl.touched) || hasPasswordMismatch"
+        />
+        @if (passwordConfirmControl.touched && passwordConfirmControl.hasError('required')) {
+          <span class="field-error">パスワード（確認）を入力してください</span>
+        } @else if (hasPasswordMismatch) {
+          <span class="field-error">パスワードが一致しません</span>
+        }
+      </div>
+
+      <button type="submit" class="btn-submit" [disabled]="loading()">
+        @if (loading()) {
+          登録中...
+        } @else {
+          登録する
+        }
+      </button>
+    </form>
+
+    <p class="login-link">
+      すでにアカウントをお持ちの方は
+      <a routerLink="/login">ログイン</a>
+    </p>
+  </div>
+</div>

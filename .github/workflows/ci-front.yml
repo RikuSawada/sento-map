@@ -1,0 +1,33 @@
+name: CI Frontend
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'front/**'
+      - '.github/workflows/ci-front.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: front/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        # --watch は非 TTY 環境で自動的に false になるが明示的に指定する
+        # --coverage でカバレッジレポートを生成（@angular/build:unit-test + Vitest）
+        run: npm test -- --watch=false --coverage

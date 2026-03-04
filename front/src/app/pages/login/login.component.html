@@ -1,0 +1,60 @@
+<div class="login-container">
+  <div class="login-card">
+    <h1 class="title">ログイン</h1>
+
+    @if (errorMessage()) {
+      <div class="error-banner" role="alert">{{ errorMessage() }}</div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="form-group">
+        <label for="email" class="label">メールアドレス</label>
+        <input
+          id="email"
+          type="email"
+          class="input"
+          formControlName="email"
+          autocomplete="email"
+          placeholder="example@mail.com"
+          [class.input--error]="emailControl.invalid && emailControl.touched"
+        />
+        @if (emailControl.touched && emailControl.hasError('required')) {
+          <span class="field-error">メールアドレスを入力してください</span>
+        } @else if (emailControl.touched && emailControl.hasError('email')) {
+          <span class="field-error">正しいメールアドレスを入力してください</span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="label">パスワード</label>
+        <input
+          id="password"
+          type="password"
+          class="input"
+          formControlName="password"
+          autocomplete="current-password"
+          placeholder="8文字以上"
+          [class.input--error]="passwordControl.invalid && passwordControl.touched"
+        />
+        @if (passwordControl.touched && passwordControl.hasError('required')) {
+          <span class="field-error">パスワードを入力してください</span>
+        } @else if (passwordControl.touched && passwordControl.hasError('minlength')) {
+          <span class="field-error">パスワードは8文字以上で入力してください</span>
+        }
+      </div>
+
+      <button type="submit" class="btn-submit" [disabled]="loading()">
+        @if (loading()) {
+          ログイン中...
+        } @else {
+          ログイン
+        }
+      </button>
+    </form>
+
+    <p class="register-link">
+      アカウントをお持ちでない方は
+      <a routerLink="/register">新規登録</a>
+    </p>
+  </div>
+</div>

@@ -1,0 +1,89 @@
+<div class="detail-page">
+  <a routerLink="/map" class="back-link">← 地図に戻る</a>
+
+  @if (loading()) {
+    <p class="status-text">読み込み中...</p>
+  } @else if (sento()) {
+    <!-- 小地図 -->
+    @if (mapsLoaded()) {
+      <div class="detail-map">
+        <google-map
+          width="100%"
+          height="100%"
+          [center]="{ lat: sento()!.lat, lng: sento()!.lng }"
+          [zoom]="16"
+          [options]="detailMapOptions"
+        >
+          <map-marker
+            [position]="{ lat: sento()!.lat, lng: sento()!.lng }"
+            [title]="sento()!.name"
+          />
+        </google-map>
+      </div>
+    }
+
+    <div class="sento-info">
+      <h1 class="sento-info__name">{{ sento()!.name }}</h1>
+
+      <dl class="sento-info__dl">
+        <dt>住所</dt>
+        <dd>{{ sento()!.address }}</dd>
+
+        @if (sento()!.phone) {
+          <dt>電話</dt>
+          <dd>
+            <a [href]="'tel:' + sento()!.phone">{{ sento()!.phone }}</a>
+          </dd>
+        }
+
+        @if (sento()!.openHours) {
+          <dt>営業時間</dt>
+          <dd>{{ sento()!.openHours }}</dd>
+        }
+
+        @if (sento()!.holiday) {
+          <dt>定休日</dt>
+          <dd>{{ sento()!.holiday }}</dd>
+        }
+
+        @if (sento()!.url) {
+          <dt>Webサイト</dt>
+          <dd>
+            <a [href]="sento()!.url!" target="_blank" rel="noopener noreferrer">
+              公式サイトを開く
+            </a>
+          </dd>
+        }
+      </dl>
+    </div>
+
+    <section class="reviews-section">
+      <h2 class="section-title">口コミ</h2>
+
+      @if (submitSuccess()) {
+        <div class="success-banner" role="status">口コミを投稿しました</div>
+      }
+      @if (submitError()) {
+        <div class="error-banner" role="alert">{{ submitError() }}</div>
+      }
+
+      @if (isLoggedIn) {
+        <app-review-form (submitReview)="onSubmitReview($event)" />
+      } @else {
+        <p class="login-prompt">
+          口コミを投稿するには
+          <a routerLink="/login">ログイン</a>
+          してください
+        </p>
+      }
+
+      <div class="review-list-wrapper">
+        @if (reviewsLoading()) {
+          <p class="status-text">口コミを読み込み中...</p>
+        } @else {
+          <app-review-list [reviews]="reviews()" />
+        }
+      </div>
+    </section>
+  }
+</div>

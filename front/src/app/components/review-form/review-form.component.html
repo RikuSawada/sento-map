@@ -1,0 +1,34 @@
+<form [formGroup]="form" (ngSubmit)="submit()" class="review-form" novalidate>
+  <h3 class="review-form__title">口コミを投稿</h3>
+
+  <div class="form-group">
+    <label class="label">評価</label>
+    <div class="star-buttons" role="radiogroup" aria-label="評価を選択">
+      @for (n of ratingOptions; track n) {
+        <button
+          type="button"
+          class="star-btn"
+          [class.star-btn--selected]="ratingControl.value >= n"
+          [attr.aria-label]="n + '点'"
+          (click)="ratingControl.setValue(n)"
+        >★</button>
+      }
+    </div>
+    @if (ratingControl.touched && ratingControl.value === 0) {
+      <span class="field-error">評価を選択してください</span>
+    }
+  </div>
+
+  <div class="form-group">
+    <label for="comment" class="label">コメント（任意）</label>
+    <textarea
+      id="comment"
+      class="textarea"
+      formControlName="comment"
+      rows="4"
+      placeholder="感想を書いてください"
+    ></textarea>
+  </div>
+
+  <button type="submit" class="btn-submit">投稿する</button>
+</form>

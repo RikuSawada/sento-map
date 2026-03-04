@@ -1,0 +1,13 @@
+<header class="global-header">
+  <a routerLink="/map" class="header-logo">🏮 東京銭湯マップ</a>
+  <nav class="header-nav">
+    @if (isLoggedIn) {
+      <button class="header-btn" (click)="logout()">ログアウト</button>
+    } @else {
+      <a routerLink="/login" class="header-link">ログイン</a>
+      <a routerLink="/register" class="header-link header-link--accent">会員登録</a>
+    }
+  </nav>
+</header>
+
+<router-outlet />
