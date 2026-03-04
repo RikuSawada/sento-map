@@ -2,12 +2,17 @@ export interface Sento {
   id: number;
   name: string;
   address: string;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   phone: string | null;
   url: string | null;
   openHours: string | null;
   holiday: string | null;
+  prefecture: string | null;
+  region: string | null;
+  sourceUrl: string | null;
+  geocodedBy: string | null;
+  facilityType: string | null;
   createdAt: string;
   updatedAt: string;
 }

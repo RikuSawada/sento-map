@@ -112,3 +112,47 @@ async def test_get_sento_optional_fields_null(client, test_db):
     assert data["url"] is None
     assert data["open_hours"] is None
     assert data["holiday"] is None
+    assert data["prefecture"] is None
+    assert data["region"] is None
+    assert data["source_url"] is None
+    assert data["facility_type"] is None
+
+
+async def test_get_sento_facility_type(client, test_db):
+    sento = await _seed_sento(test_db, facility_type="onsen")
+    resp = await client.get(f"/sentos/{sento.id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["facility_type"] == "onsen"
+
+
+async def test_list_sentos_facility_type_in_response(client, test_db):
+    await _seed_sento(test_db, name="普通銭湯", facility_type="sento")
+    await _seed_sento(test_db, name="スーパー銭湯", lat=35.7, lng=139.7, facility_type="super_sento")
+    resp = await client.get("/sentos")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 2
+    types = {item["name"]: item["facility_type"] for item in data["items"]}
+    assert types["普通銭湯"] == "sento"
+    assert types["スーパー銭湯"] == "super_sento"
+
+
+async def test_list_sentos_prefecture_filter(client, test_db):
+    await _seed_sento(test_db, name="東京銭湯A", address="東京都渋谷区1-1", prefecture="東京都")
+    await _seed_sento(test_db, name="大阪銭湯A", address="大阪府大阪市1-1", lat=34.6, lng=135.5, prefecture="大阪府")
+    resp = await client.get("/sentos?prefecture=東京都")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["name"] == "東京銭湯A"
+    assert data["items"][0]["prefecture"] == "東京都"
+
+
+async def test_list_sentos_prefecture_filter_no_match(client, test_db):
+    await _seed_sento(test_db, name="東京銭湯", prefecture="東京都")
+    resp = await client.get("/sentos?prefecture=北海道")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 0
+    assert data["items"] == []
