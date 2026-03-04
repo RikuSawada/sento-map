@@ -13,6 +13,11 @@ const mockSento: Sento = {
   url: 'https://example.com',
   openHours: '15:00-23:00',
   holiday: '月曜日',
+  prefecture: '東京都',
+  region: '関東',
+  sourceUrl: null,
+  geocodedBy: 'batch',
+  facilityType: null,
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z'
 };
