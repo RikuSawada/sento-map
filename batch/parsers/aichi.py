@@ -41,9 +41,6 @@ class AichiParser(BaseParser):
     prefecture = "愛知県"
     region = "東海"
 
-    def __init__(self) -> None:
-        self._last_page: int = 1
-
     def get_list_urls(self) -> list[str]:
         """ページ1の URL のみ返す。get_all_list_urls でページ数確定。"""
         return [LIST_URL_TEMPLATE.format(page=1)]

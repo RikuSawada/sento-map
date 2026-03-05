@@ -24,6 +24,6 @@
 `feature/expand-007-osaka-aichi`
 
 ## ステータス
-- [ ] 実装
-- [ ] テスト
-- [ ] PR
+- [x] 実装
+- [x] テスト
+- [x] PR
