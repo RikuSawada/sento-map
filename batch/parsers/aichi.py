@@ -112,10 +112,10 @@ class AichiParser(BaseParser):
             return None
 
         # 住所・電話・営業時間・定休日（dt/dd ペア）
-        address = _extract_label_value(soup, "住所") or ""
-        phone = _extract_label_value(soup, "TEL") or _extract_label_value(soup, "電話番号")
-        open_hours = _extract_label_value(soup, "営業時間")
-        holiday = _extract_label_value(soup, "定休日") or _extract_label_value(soup, "休日")
+        address = self.extract_label_value(soup, "住所") or ""
+        phone = self.extract_label_value(soup, "TEL") or self.extract_label_value(soup, "電話番号")
+        open_hours = self.extract_label_value(soup, "営業時間")
+        holiday = self.extract_label_value(soup, "定休日") or self.extract_label_value(soup, "休日")
 
         # 電話: tel: リンクも確認
         if not phone:
@@ -154,13 +154,3 @@ class AichiParser(BaseParser):
         }
 
 
-def _extract_label_value(soup: BeautifulSoup, label: str) -> Optional[str]:
-    """dt または th テキストが label に一致する dd/td の値を返す。"""
-    for dt in soup.find_all(["dt", "th"]):
-        if label in dt.get_text(strip=True):
-            sibling = dt.find_next_sibling(["dd", "td"])
-            if sibling:
-                val = sibling.get_text(strip=True)
-                if val:
-                    return val
-    return None

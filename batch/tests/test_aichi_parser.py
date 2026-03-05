@@ -1,7 +1,8 @@
 """AichiParser のユニットテスト。"""
 import pytest
 
-from parsers.aichi import AichiParser, _extract_label_value
+from parsers.aichi import AichiParser
+from parsers.base import BaseParser
 from bs4 import BeautifulSoup
 
 
@@ -153,9 +154,9 @@ def test_get_item_urls_deduplicates(parser: AichiParser) -> None:
 
 def test_extract_label_value_dt_dd() -> None:
     soup = BeautifulSoup("<dl><dt>住所</dt><dd>名古屋市</dd></dl>", "lxml")
-    assert _extract_label_value(soup, "住所") == "名古屋市"
+    assert BaseParser.extract_label_value(soup, "住所") == "名古屋市"
 
 
 def test_extract_label_value_returns_none_when_missing() -> None:
     soup = BeautifulSoup("<dl><dt>TEL</dt><dd>052-0000</dd></dl>", "lxml")
-    assert _extract_label_value(soup, "住所") is None
+    assert BaseParser.extract_label_value(soup, "住所") is None
