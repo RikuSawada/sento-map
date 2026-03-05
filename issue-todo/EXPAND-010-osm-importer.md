@@ -33,6 +33,6 @@ uv run python osm_geocoder.py --import-new --all
 `feature/expand-010-osm-importer`
 
 ## ステータス
-- [ ] 実装
-- [ ] テスト
-- [ ] PR
+- [x] 実装
+- [x] テスト
+- [x] PR

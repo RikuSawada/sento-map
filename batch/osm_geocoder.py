@@ -37,6 +37,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from db import get_engine
+from parsers import PARSERS
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,27 @@ PREFECTURE_NAMES = [
 ]
 
 # 公式パーサーが実装済みの都道府県（--import-new --all 時に除外）
-PARSER_IMPLEMENTED_PREFECTURES = {
-    "東京都", "京都府", "福岡県", "大阪府", "愛知県",
+# parsers/__init__.py の PARSERS dict から自動参照することで手動更新不要
+PARSER_IMPLEMENTED_PREFECTURES: set[str] = set(PARSERS.keys())
+
+# 都道府県 → 地域区分マッピング（INSERT 時の region カラムに使用）
+PREFECTURE_TO_REGION: dict[str, str] = {
+    "北海道": "北海道",
+    "青森県": "東北", "岩手県": "東北", "宮城県": "東北",
+    "秋田県": "東北", "山形県": "東北", "福島県": "東北",
+    "茨城県": "関東", "栃木県": "関東", "群馬県": "関東",
+    "埼玉県": "関東", "千葉県": "関東", "東京都": "関東", "神奈川県": "関東",
+    "新潟県": "中部", "富山県": "中部", "石川県": "中部", "福井県": "中部",
+    "山梨県": "中部", "長野県": "中部", "岐阜県": "中部",
+    "静岡県": "中部", "愛知県": "中部",
+    "三重県": "近畿", "滋賀県": "近畿", "京都府": "近畿",
+    "大阪府": "近畿", "兵庫県": "近畿", "奈良県": "近畿", "和歌山県": "近畿",
+    "鳥取県": "中国", "島根県": "中国", "岡山県": "中国",
+    "広島県": "中国", "山口県": "中国",
+    "徳島県": "四国", "香川県": "四国", "愛媛県": "四国", "高知県": "四国",
+    "福岡県": "九州", "佐賀県": "九州", "長崎県": "九州",
+    "熊本県": "九州", "大分県": "九州", "宮崎県": "九州",
+    "鹿児島県": "九州", "沖縄県": "九州",
 }
 
 
@@ -320,11 +340,11 @@ def import_new_prefecture(
                     """
                     INSERT INTO sentos
                         (name, address, lat, lng, phone, url, open_hours, holiday,
-                         prefecture, source_url, geocoded_by, facility_type,
+                         prefecture, region, source_url, geocoded_by, facility_type,
                          created_at, updated_at)
                     VALUES
                         (:name, :address, :lat, :lng, :phone, :url, :open_hours, :holiday,
-                         :prefecture, :source_url, 'osm', :facility_type,
+                         :prefecture, :region, :source_url, 'osm', :facility_type,
                          NOW(), NOW())
                     """
                 ),
@@ -338,6 +358,7 @@ def import_new_prefecture(
                     "open_hours": tags.get("opening_hours"),
                     "holiday": None,
                     "prefecture": prefecture,
+                    "region": PREFECTURE_TO_REGION.get(prefecture),
                     "source_url": source_url,
                     "facility_type": facility_type,
                 },
@@ -406,23 +427,24 @@ def main() -> None:
     total_skipped = 0
     total_total = 0
 
-    for i, pref in enumerate(prefectures):
-        if args.import_new:
-            primary, skipped, total = import_new_prefecture(session, pref, dry_run=args.dry_run)
-            logger.info("%s: INSERT=%d / スキップ=%d / 合計=%d", pref, primary, skipped, total)
-        else:
-            primary, skipped, total = geocode_prefecture(session, pref, dry_run=args.dry_run)
-            logger.info("%s: 座標補完=%d / スキップ=%d / 対象=%d", pref, primary, skipped, total)
+    try:
+        for i, pref in enumerate(prefectures):
+            if args.import_new:
+                primary, skipped, total = import_new_prefecture(session, pref, dry_run=args.dry_run)
+                logger.info("%s: INSERT=%d / スキップ=%d / 合計=%d", pref, primary, skipped, total)
+            else:
+                primary, skipped, total = geocode_prefecture(session, pref, dry_run=args.dry_run)
+                logger.info("%s: 座標補完=%d / スキップ=%d / 対象=%d", pref, primary, skipped, total)
 
-        total_primary += primary
-        total_skipped += skipped
-        total_total += total
+            total_primary += primary
+            total_skipped += skipped
+            total_total += total
 
-        # 都道府県間のインターバル（Overpass API への負荷軽減）
-        if args.all and i < len(prefectures) - 1 and total > 0:
-            time.sleep(5)
-
-    session.close()
+            # 都道府県間のインターバル（Overpass API への負荷軽減）
+            if args.all and i < len(prefectures) - 1 and total > 0:
+                time.sleep(5)
+    finally:
+        session.close()
 
     if args.import_new:
         logger.info(
