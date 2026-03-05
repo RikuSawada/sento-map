@@ -1,10 +1,14 @@
 """
-銭湯情報スクレイパー (1010.or.jp)
+銭湯情報スクレイパー
 
 usage:
-  uv run python scraper.py                      # 通常実行（DB に UPSERT）
-  uv run python scraper.py --dry-run            # ドライラン（標準出力のみ、DB 書き込みなし）
-  uv run python scraper.py --dry-run --limit 5  # 最初の 5 件だけ処理
+  uv run python scraper.py                                  # 東京（デフォルト）
+  uv run python scraper.py --region 東京都                  # 東京のみ
+  uv run python scraper.py --region 京都府                  # 京都のみ
+  uv run python scraper.py --region 福岡県                  # 福岡のみ
+  uv run python scraper.py --all                            # 実装済み全都道府県
+  uv run python scraper.py --dry-run                        # ドライラン（DB 書き込みなし）
+  uv run python scraper.py --dry-run --limit 5 --region 東京都
 """
 import argparse
 import json
@@ -15,66 +19,126 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from fetcher import fetch
-from parser import parse_item_urls, parse_last_page, parse_sento
+from parsers import PARSERS, BaseParser
+from parsers.tokyo import TokyoParser
 
-BASE_URL = "https://www.1010.or.jp"
-LIST_URL = f"{BASE_URL}/map/item"
-REQUEST_INTERVAL = 2.0  # サーバ負荷軽減のため最低 2 秒のリクエスト間隔
+REQUEST_INTERVAL = 2.0
 
 
-def collect_all_item_urls(logger: logging.Logger) -> list[str]:
-    """全ページを巡回して銭湯個別ページの URL を収集する。"""
-    # ページ1を取得して最終ページ番号を取得
-    page1_url = f"{LIST_URL}/page/1"
-    logger.info("ページ1を取得中: %s", page1_url)
-    page1_html = fetch(page1_url, interval=REQUEST_INTERVAL)
-    if not page1_html:
-        logger.error("ページ1の取得に失敗しました")
-        return []
+def run_parser(
+    parser: BaseParser,
+    logger: logging.Logger,
+    session: Optional[object],
+    dry_run: bool,
+    limit: int,
+) -> tuple[int, int, int]:
+    """1つのパーサーに対してスクレイピングを実行する。
 
-    all_urls = parse_item_urls(page1_html)
-    last_page = parse_last_page(page1_html)
-    logger.info("全 %d ページを処理します（ページ1: %d 件取得済み）", last_page, len(all_urls))
+    Returns:
+        (success_count, skip_count, fail_count)
+    """
+    from db import upsert_sento
 
-    for page_num in range(2, last_page + 1):
-        page_url = f"{LIST_URL}/page/{page_num}"
-        logger.info("一覧ページ %d/%d を取得中: %s", page_num, last_page, page_url)
-        html = fetch(page_url, interval=REQUEST_INTERVAL)
+    # ---- 全一覧ページ URL の確定 ----
+    # ページ1を先行取得してページ数を確定するパーサー（Tokyo・Kyoto）に対応。
+    # ページ1 HTML をキャッシュして後のループで再フェッチしない。
+    page1_html_cache: dict[str, str] = {}
+
+    if isinstance(parser, TokyoParser):
+        list_url_page1 = "https://www.1010.or.jp/map/item/page/1"
+        logger.info("ページ1を取得中: %s", list_url_page1)
+        p1 = fetch(list_url_page1, interval=REQUEST_INTERVAL)
+        if not p1:
+            logger.error("ページ1の取得に失敗しました")
+            return 0, 0, 1
+        parser.update_last_page(p1)
+        list_urls = parser.get_list_urls()
+        page1_html_cache[list_url_page1] = p1
+    else:
+        init_urls = parser.get_list_urls()
+        if hasattr(parser, "get_all_list_urls"):
+            # Kyoto 等: ページ1の HTML からページ数を確定
+            page1_url = init_urls[0]
+            logger.info("ページ1を取得中（ページ数確定）: %s", page1_url)
+            p1 = fetch(page1_url, interval=REQUEST_INTERVAL)
+            if not p1:
+                logger.error("ページ1の取得に失敗しました")
+                return 0, 0, 1
+            list_urls = parser.get_all_list_urls(p1)
+            page1_html_cache[page1_url] = p1
+        else:
+            list_urls = init_urls
+
+    # ---- 個別ページ URL を収集 ----
+    all_item_urls: list[str] = []
+    for i, list_url in enumerate(list_urls):
+        logger.info("[一覧 %d/%d] %s", i + 1, len(list_urls), list_url)
+
+        html = page1_html_cache.get(list_url) or fetch(list_url, interval=REQUEST_INTERVAL)
+
         if not html:
-            logger.error("ページ %d の取得に失敗しました（スキップ）", page_num)
+            logger.error("一覧ページ取得失敗（スキップ）: %s", list_url)
             continue
-        urls = parse_item_urls(html)
-        all_urls.extend(urls)
-        logger.info("ページ %d: %d 件取得（累計 %d 件）", page_num, len(urls), len(all_urls))
 
-    # 重複除去（順序維持）
+        urls = parser.get_item_urls(html, list_url)
+        all_item_urls.extend(urls)
+        logger.info("一覧 %d: %d 件取得（累計 %d 件）", i + 1, len(urls), len(all_item_urls))
+
+    # 重複除去
     seen: set[str] = set()
     unique_urls: list[str] = []
-    for u in all_urls:
+    for u in all_item_urls:
         if u not in seen:
             seen.add(u)
             unique_urls.append(u)
+    logger.info("個別ページ収集完了: %d 件", len(unique_urls))
 
-    logger.info("全ページ収集完了: %d 件（重複除去後）", len(unique_urls))
-    return unique_urls
+    if limit > 0:
+        unique_urls = unique_urls[:limit]
+        logger.info("--limit %d 件に絞って処理します", limit)
+
+    total = len(unique_urls)
+    success_count = 0
+    skip_count = 0
+    fail_count = 0
+
+    for i, url in enumerate(unique_urls, start=1):
+        logger.info("[%d/%d] 取得中: %s", i, total, url)
+        html = fetch(url, interval=REQUEST_INTERVAL)
+        if not html:
+            logger.error("取得失敗（スキップ）: %s", url)
+            fail_count += 1
+            continue
+
+        data = parser.parse_sento(html, url)
+        if data is None:
+            logger.warning("パース失敗（スキップ）: %s", url)
+            skip_count += 1
+            continue
+
+        if dry_run:
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+            success_count += 1
+        else:
+            ok = upsert_sento(session, data)  # type: ignore[arg-type]
+            if ok:
+                logger.info("UPSERT 完了: %s", data["name"])
+                success_count += 1
+            else:
+                fail_count += 1
+
+    return success_count, skip_count, fail_count
 
 
 def main() -> None:
     load_dotenv()
 
-    arg_parser = argparse.ArgumentParser(description="1010.or.jp 銭湯スクレイパー")
-    arg_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="DB への書き込みを行わず、標準出力に結果を表示する",
-    )
-    arg_parser.add_argument(
-        "--limit",
-        type=int,
-        default=0,
-        metavar="N",
-        help="処理する銭湯数の上限（0 = 全件）",
-    )
+    arg_parser = argparse.ArgumentParser(description="銭湯組合サイト スクレイパー")
+    group = arg_parser.add_mutually_exclusive_group()
+    group.add_argument("--region", metavar="PREF", help="対象都道府県（例: 東京都）。省略時は東京都")
+    group.add_argument("--all", action="store_true", help="実装済み全都道府県を処理")
+    arg_parser.add_argument("--dry-run", action="store_true", help="DB 書き込みなし（標準出力に結果を表示）")
+    arg_parser.add_argument("--limit", type=int, default=0, metavar="N", help="処理件数上限（0=全件）")
     args = arg_parser.parse_args()
 
     logging.basicConfig(
@@ -84,11 +148,24 @@ def main() -> None:
     )
     logger = logging.getLogger(__name__)
 
-    # --- DB セットアップ（dry-run でない場合のみ）---
+    # 対象都道府県を決定
+    if args.all:
+        target_prefectures = list(PARSERS.keys())
+    elif args.region:
+        if args.region not in PARSERS:
+            logger.error("未実装の都道府県: %s（実装済み: %s）", args.region, list(PARSERS.keys()))
+            sys.exit(1)
+        target_prefectures = [args.region]
+    else:
+        target_prefectures = ["東京都"]
+
+    logger.info("対象都道府県: %s", target_prefectures)
+
+    # DB セットアップ
     session: Optional[object] = None
     if not args.dry_run:
         try:
-            from db import get_engine, upsert_sento
+            from db import get_engine
             from sqlalchemy.orm import Session
 
             engine = get_engine()
@@ -100,68 +177,28 @@ def main() -> None:
     else:
         logger.info("ドライランモード: DB への書き込みはスキップします")
 
-    # 1. 全ページを巡回して銭湯 URL を収集
-    item_urls = collect_all_item_urls(logger)
-    if not item_urls:
-        logger.error("銭湯 URL が0件でした。サイト構造が変わった可能性があります")
-        sys.exit(1)
+    total_success = 0
+    total_skip = 0
+    total_fail = 0
 
-    # --limit 指定がある場合は件数を絞る
-    if args.limit > 0:
-        item_urls = item_urls[: args.limit]
-        logger.info("--limit %d 件に絞って処理します", args.limit)
+    for pref in target_prefectures:
+        logger.info("=== %s を処理中 ===", pref)
+        parser = PARSERS[pref]()
+        s, sk, f = run_parser(parser, logger, session, args.dry_run, args.limit)
+        total_success += s
+        total_skip += sk
+        total_fail += f
+        logger.info("%s: 成功=%d / スキップ=%d / 失敗=%d", pref, s, sk, f)
 
-    total = len(item_urls)
-    logger.info("個別ページ処理対象: %d 件", total)
-
-    # 2. 各個別ページをスクレイピング
-    success_count = 0
-    skip_count = 0
-    fail_count = 0
-
-    for i, url in enumerate(item_urls, start=1):
-        logger.info("[%d/%d] 取得中: %s", i, total, url)
-
-        html = fetch(url, interval=REQUEST_INTERVAL)
-        if not html:
-            logger.error("取得失敗（スキップ）: %s", url)
-            fail_count += 1
-            continue
-
-        data = parse_sento(html, url)
-        if data is None:
-            logger.warning("パース失敗（必須フィールド欠損、スキップ）: %s", url)
-            skip_count += 1
-            continue
-
-        # 3. DB に UPSERT または dry-run 出力
-        if args.dry_run:
-            print(json.dumps(data, ensure_ascii=False, indent=2))
-            success_count += 1
-        else:
-            from db import upsert_sento
-
-            ok = upsert_sento(session, data)  # type: ignore[arg-type]
-            if ok:
-                logger.info("UPSERT 完了: %s", data["name"])
-                success_count += 1
-            else:
-                fail_count += 1
-
-    # DB セッションを閉じる
     if session is not None:
         session.close()  # type: ignore[union-attr]
 
-    # 4. 統計ログ出力
     logger.info(
-        "完了 - 成功: %d / スキップ: %d / 失敗: %d / 合計: %d",
-        success_count,
-        skip_count,
-        fail_count,
-        total,
+        "全体完了 - 成功: %d / スキップ: %d / 失敗: %d",
+        total_success, total_skip, total_fail,
     )
 
-    if fail_count > 0:
+    if total_fail > 0:
         sys.exit(1)
 
 
