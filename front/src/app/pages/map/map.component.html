@@ -2,6 +2,18 @@
   <!-- 左サイドバー: カード一覧 -->
   <div class="sidebar">
     <div class="search-bar">
+      <!-- 都道府県セレクタ（最上位フィルタ） -->
+      <select
+        class="pref-select"
+        [value]="selectedPrefecture()"
+        (change)="onPrefectureChange($any($event.target).value)"
+      >
+        <option value="">全国</option>
+        @for (pref of prefectureList; track pref) {
+          <option [value]="pref">{{ pref }}</option>
+        }
+      </select>
+
       <input
         class="search-input"
         type="text"
@@ -9,16 +21,19 @@
         [value]="searchQuery()"
         (input)="searchQuery.set($any($event.target).value)"
       />
-      <select
-        class="area-select"
-        [value]="selectedArea()"
-        (change)="selectedArea.set($any($event.target).value)"
-      >
-        <option value="">全エリア</option>
-        @for (area of areas(); track area) {
-          <option [value]="area">{{ area }}</option>
-        }
-      </select>
+
+      @if (areas().length > 0) {
+        <select
+          class="area-select"
+          [value]="selectedArea()"
+          (change)="onAreaChange($any($event.target).value)"
+        >
+          <option value="">全エリア</option>
+          @for (area of areas(); track area) {
+            <option [value]="area">{{ area }}</option>
+          }
+        </select>
+      }
     </div>
 
     @if (error()) {
@@ -30,6 +45,9 @@
         読み込み中...
       } @else {
         {{ filteredSentos().length }}件
+        @if (selectedPrefecture()) {
+          <span class="pref-badge">{{ selectedPrefecture() }}</span>
+        }
       }
     </p>
 
@@ -50,11 +68,11 @@
         class="map"
         width="100%"
         height="100%"
-        [center]="center"
-        [zoom]="zoom"
+        [center]="mapCenter()"
+        [zoom]="mapZoom()"
         [options]="mapOptions"
       >
-        @for (sento of filteredSentos(); track sento.id) {
+        @for (sento of markableSentos(); track sento.id) {
           <map-marker
             [position]="{ lat: sento.lat, lng: sento.lng }"
             [title]="sento.name"
