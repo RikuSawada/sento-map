@@ -19,8 +19,11 @@ async def get_sentos(
     lat_max: Optional[float] = None,
     lng_min: Optional[float] = None,
     lng_max: Optional[float] = None,
+    prefecture: Optional[str] = None,
 ) -> tuple[list[Sento], int]:
     stmt = select(Sento)
+    if prefecture is not None:
+        stmt = stmt.where(Sento.prefecture == prefecture)
     if lat_min is not None:
         stmt = stmt.where(Sento.lat >= lat_min)
     if lat_max is not None:
@@ -36,10 +39,28 @@ async def get_sentos(
 
 
 async def upsert_sento(db: AsyncSession, data: dict) -> Sento:
-    """バッチからの差分更新。url でユニーク判定。"""
+    """バッチからの差分更新。
+
+    UPSERT キー優先順位:
+      1. source_url（組合サイトのページ URL）
+      2. url（銭湯の公式 Web サイト）
+      3. name + address + prefecture（フォールバック）
+    """
     existing = None
-    if data.get("url"):
+    if data.get("source_url"):
+        result = await db.execute(select(Sento).where(Sento.source_url == data["source_url"]))
+        existing = result.scalar_one_or_none()
+    if not existing and data.get("url"):
         result = await db.execute(select(Sento).where(Sento.url == data["url"]))
+        existing = result.scalar_one_or_none()
+    if not existing and data.get("name") and data.get("address"):
+        result = await db.execute(
+            select(Sento).where(
+                Sento.name == data["name"],
+                Sento.address == data["address"],
+                Sento.prefecture == data.get("prefecture"),
+            )
+        )
         existing = result.scalar_one_or_none()
     if existing:
         for key, value in data.items():

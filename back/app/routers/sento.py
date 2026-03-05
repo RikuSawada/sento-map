@@ -18,6 +18,7 @@ async def list_sentos(
     lat_max: Optional[float] = Query(None),
     lng_min: Optional[float] = Query(None),
     lng_max: Optional[float] = Query(None),
+    prefecture: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ) -> SentoListResponse:
     skip = (page - 1) * per_page
@@ -29,6 +30,7 @@ async def list_sentos(
         lat_max=lat_max,
         lng_min=lng_min,
         lng_max=lng_max,
+        prefecture=prefecture,
     )
     return SentoListResponse(
         items=[SentoResponse.model_validate(s) for s in items],

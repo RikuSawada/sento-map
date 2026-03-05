@@ -24,6 +24,7 @@ export interface SentoQueryParams {
   lng_max?: number;
   page?: number;
   per_page?: number;
+  prefecture?: string;
 }
 
 @Injectable({
@@ -42,6 +43,7 @@ export class SentoService {
       if (params.lng_max !== undefined) httpParams = httpParams.set('lng_max', params.lng_max);
       if (params.page !== undefined) httpParams = httpParams.set('page', params.page);
       if (params.per_page !== undefined) httpParams = httpParams.set('per_page', params.per_page);
+      if (params.prefecture !== undefined) httpParams = httpParams.set('prefecture', params.prefecture);
     }
     return this.http
       .get<unknown>(`${this.apiUrl}/sentos`, { params: httpParams })
