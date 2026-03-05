@@ -57,7 +57,7 @@ PREFECTURE_NAMES = [
 
 # 公式パーサーが実装済みの都道府県（--import-new --all 時に除外）
 PARSER_IMPLEMENTED_PREFECTURES = {
-    "東京都", "京都府", "福岡県",
+    "東京都", "京都府", "福岡県", "大阪府", "愛知県",
 }
 
 
