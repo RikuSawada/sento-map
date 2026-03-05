@@ -142,7 +142,7 @@ class OsakaParser(BaseParser):
                 break
         if not address:
             # dt/dd ペアから「住所」を探す
-            address = _extract_label_value(soup, "住所")
+            address = self.extract_label_value(soup, "住所")
 
         # 電話番号
         phone: Optional[str] = None
@@ -150,11 +150,11 @@ class OsakaParser(BaseParser):
         if tel_tag:
             phone = tel_tag["href"].replace("tel:", "").strip()
         if not phone:
-            phone = _extract_label_value(soup, "電話番号") or _extract_label_value(soup, "TEL")
+            phone = self.extract_label_value(soup, "電話番号") or self.extract_label_value(soup, "TEL")
 
         # 営業時間 / 定休日
-        open_hours = _extract_label_value(soup, "営業時間") or _extract_label_value(soup, "営業時間帯")
-        holiday = _extract_label_value(soup, "定休日") or _extract_label_value(soup, "休日")
+        open_hours = self.extract_label_value(soup, "営業時間") or self.extract_label_value(soup, "営業時間帯")
+        holiday = self.extract_label_value(soup, "定休日") or self.extract_label_value(soup, "休日")
 
         # 緯度経度: キャッシュ → 個別ページの Google Maps リンク
         lat: Optional[float] = None
@@ -191,13 +191,3 @@ class OsakaParser(BaseParser):
         }
 
 
-def _extract_label_value(soup: BeautifulSoup, label: str) -> Optional[str]:
-    """dt または th テキストが label に一致する場合、対応する dd または td を返す。"""
-    for dt in soup.find_all(["dt", "th"]):
-        if label in dt.get_text(strip=True):
-            sibling = dt.find_next_sibling(["dd", "td"])
-            if sibling:
-                val = sibling.get_text(strip=True)
-                if val:
-                    return val
-    return None

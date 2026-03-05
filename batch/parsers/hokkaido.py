@@ -76,14 +76,14 @@ class HokkaidoParser(BaseParser):
             return None
 
         # 住所・電話・営業時間・定休日
-        address = _extract_label_value(soup, "住所") or ""
-        phone = _extract_label_value(soup, "TEL") or _extract_label_value(soup, "電話番号")
+        address = self.extract_label_value(soup, "住所") or ""
+        phone = self.extract_label_value(soup, "TEL") or self.extract_label_value(soup, "電話番号")
         if not phone:
             tel_tag = soup.find("a", href=re.compile(r"^tel:"))
             if tel_tag:
                 phone = tel_tag["href"].replace("tel:", "").strip()
-        open_hours = _extract_label_value(soup, "営業時間")
-        holiday = _extract_label_value(soup, "定休日") or _extract_label_value(soup, "休日")
+        open_hours = self.extract_label_value(soup, "営業時間")
+        holiday = self.extract_label_value(soup, "定休日") or self.extract_label_value(soup, "休日")
 
         # 緯度経度: Google Maps リンクまたは iframe
         lat: Optional[float] = None
@@ -137,13 +137,3 @@ class HokkaidoParser(BaseParser):
         }
 
 
-def _extract_label_value(soup: BeautifulSoup, label: str) -> Optional[str]:
-    """dt または th テキストが label に一致する dd/td の値を返す。"""
-    for dt in soup.find_all(["dt", "th"]):
-        if label in dt.get_text(strip=True):
-            sibling = dt.find_next_sibling(["dd", "td"])
-            if sibling:
-                val = sibling.get_text(strip=True)
-                if val:
-                    return val
-    return None

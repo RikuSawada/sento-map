@@ -44,15 +44,40 @@ class ChibaParser(BaseParser):
     region = "関東"
 
     def get_list_urls(self) -> list[str]:
-        """トップページから開始し、エリア一覧ページを収集する。"""
         return [TOP_URL]
 
+    def get_all_list_urls(self, page1_html: str) -> list[str]:
+        """トップページ HTML からエリアページ URL を収集し、全一覧ページリストを返す。
+
+        scraper.py はここで返した URL それぞれに対して get_item_urls を呼び出す。
+        トップページとエリアページの両方から銭湯 URL を収集するため、
+        [TOP_URL, area_page_1, area_page_2, ...] を返す。
+        """
+        soup = BeautifulSoup(page1_html, "lxml")
+        urls: list[str] = [TOP_URL]
+        seen: set[str] = {TOP_URL}
+
+        for a in soup.find_all("a", href=True):
+            href: str = a["href"]
+            if not href.startswith("http"):
+                href = urljoin(BASE_URL, href)
+            parsed = urlparse(href)
+            if "chiba1126sento.com" not in parsed.netloc:
+                continue
+            if _AREA_PAGE_PATTERN.search(href) and href not in seen:
+                seen.add(href)
+                urls.append(href)
+
+        return urls
+
     def get_item_urls(self, html: str, page_url: str) -> list[str]:
-        """一覧・エリアページから個別銭湯ページ URL を収集する。
+        """一覧・エリアページから銭湯個別ページ URL のみを収集する。
 
         WordPress のサイト構造:
         1. トップ → エリア固定ページ → 銭湯個別ページ
         2. トップ → 銭湯個別ページへの直接リンク
+
+        エリアページ URL は get_all_list_urls で処理するため、ここでは返さない。
         """
         soup = BeautifulSoup(html, "lxml")
         urls: list[str] = []
@@ -72,17 +97,8 @@ class ChibaParser(BaseParser):
             if any(x in href for x in ("/wp-admin", "/wp-login", "?page_id=1&")):
                 continue
 
-            # 投稿ページ（数字パス、?p=N 等）
-            path = parsed.path
-            if re.search(r"/\d{4}/\d{2}/\d{2}/|/\?p=\d+", href):
-                if href not in seen:
-                    seen.add(href)
-                    urls.append(href)
-                continue
-
-            # ?page_id=N 形式のエリアページ（再帰的に処理するためリストに含める）
-            # ただし、すでに処理中のページは除外
-            if _AREA_PAGE_PATTERN.search(href) and href != page_url:
+            # 投稿ページ（数字パス、?p=N 等）のみ収集。エリアページ（?page_id=N）は除外
+            if re.search(r"/\d{4}/\d{2}/\d{2}/|[?&]p=\d+", href):
                 if href not in seen:
                     seen.add(href)
                     urls.append(href)
@@ -111,14 +127,14 @@ class ChibaParser(BaseParser):
             return None
 
         # 住所・電話・営業時間・定休日
-        address = _extract_label_value(soup, "住所") or ""
-        phone = _extract_label_value(soup, "TEL") or _extract_label_value(soup, "電話")
+        address = self.extract_label_value(soup, "住所") or ""
+        phone = self.extract_label_value(soup, "TEL") or self.extract_label_value(soup, "電話")
         if not phone:
             tel_tag = soup.find("a", href=re.compile(r"^tel:"))
             if tel_tag:
                 phone = tel_tag["href"].replace("tel:", "").strip()
-        open_hours = _extract_label_value(soup, "営業時間")
-        holiday = _extract_label_value(soup, "定休日") or _extract_label_value(soup, "休日")
+        open_hours = self.extract_label_value(soup, "営業時間")
+        holiday = self.extract_label_value(soup, "定休日") or self.extract_label_value(soup, "休日")
 
         # 緯度経度
         lat: Optional[float] = None
@@ -178,21 +194,3 @@ class ChibaParser(BaseParser):
         return sum(1 for ind in indicators if ind in text) >= 2
 
 
-def _extract_label_value(soup: BeautifulSoup, label: str) -> Optional[str]:
-    """dt または th テキストが label に一致する dd/td の値を返す。"""
-    for dt in soup.find_all(["dt", "th"]):
-        if label in dt.get_text(strip=True):
-            sibling = dt.find_next_sibling(["dd", "td"])
-            if sibling:
-                val = sibling.get_text(strip=True)
-                if val:
-                    return val
-    # strong タグに label がある場合も確認
-    for strong in soup.find_all(["strong", "b"]):
-        if label in strong.get_text(strip=True):
-            parent = strong.parent
-            if parent:
-                text = parent.get_text(strip=True).replace(label, "").strip()
-                if text and len(text) < 100:
-                    return text
-    return None

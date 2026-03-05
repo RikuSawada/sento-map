@@ -4,7 +4,8 @@ import textwrap
 
 import pytest
 
-from parsers.osaka import OsakaParser, _extract_label_value
+from parsers.osaka import OsakaParser
+from parsers.base import BaseParser
 from bs4 import BeautifulSoup
 
 
@@ -143,9 +144,9 @@ def test_get_item_urls_deduplicates(parser: OsakaParser) -> None:
 
 def test_extract_label_value_dt_dd() -> None:
     soup = BeautifulSoup("<dl><dt>住所</dt><dd>大阪市</dd></dl>", "lxml")
-    assert _extract_label_value(soup, "住所") == "大阪市"
+    assert BaseParser.extract_label_value(soup, "住所") == "大阪市"
 
 
 def test_extract_label_value_returns_none_when_missing() -> None:
     soup = BeautifulSoup("<dl><dt>電話</dt><dd>06-0000</dd></dl>", "lxml")
-    assert _extract_label_value(soup, "住所") is None
+    assert BaseParser.extract_label_value(soup, "住所") is None

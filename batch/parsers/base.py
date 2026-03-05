@@ -2,6 +2,8 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
+from bs4 import BeautifulSoup
+
 
 class BaseParser(ABC):
     """都道府県銭湯組合サイトの共通パーサーインターフェース。
@@ -54,6 +56,28 @@ class BaseParser(ABC):
             None: 必須フィールド（name, address）が取得できなかった場合
         """
         ...
+
+    @staticmethod
+    def extract_label_value(soup: BeautifulSoup, label: str) -> Optional[str]:
+        """dt/th テキストが label に一致する dd/td の値を返す。
+
+        strong/b タグに label がある場合も対応する。
+        """
+        for dt in soup.find_all(["dt", "th"]):
+            if label in dt.get_text(strip=True):
+                sibling = dt.find_next_sibling(["dd", "td"])
+                if sibling:
+                    val = sibling.get_text(strip=True)
+                    if val:
+                        return val
+        for strong in soup.find_all(["strong", "b"]):
+            if label in strong.get_text(strip=True):
+                parent = strong.parent
+                if parent:
+                    text = parent.get_text(strip=True).replace(label, "").strip()
+                    if text and len(text) < 100:
+                        return text
+        return None
 
     def get_all_list_urls(self, page1_html: str) -> list[str]:
         """全一覧ページ URL を返す。ページネーションが動的なサイトはオーバーライドする。"""
