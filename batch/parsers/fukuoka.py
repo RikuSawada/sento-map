@@ -101,4 +101,5 @@ class FukuokaParser(BaseParser):
             name=name, address=address, lat=lat, lng=lng,
             phone=phone, open_hours=open_hours, holiday=holiday,
             source_url=page_url,
+            facility_type="sento",
         )

@@ -74,7 +74,7 @@
       >
         @for (sento of markableSentos(); track sento.id) {
           <map-marker
-            [position]="{ lat: sento.lat!, lng: sento.lng! }"
+            [position]="{ lat: sento.lat, lng: sento.lng }"
             [title]="sento.name"
             (mapClick)="onMarkerClick(sento)"
           />

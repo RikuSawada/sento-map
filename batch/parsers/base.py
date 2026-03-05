@@ -50,10 +50,14 @@ class BaseParser(ABC):
 
         Returns:
             dict: {name, address, lat?, lng?, phone?, url?, open_hours?, holiday?,
-                   prefecture, region, source_url}
+                   prefecture, region, source_url, facility_type?}
             None: 必須フィールド（name, address）が取得できなかった場合
         """
         ...
+
+    def get_all_list_urls(self, page1_html: str) -> list[str]:
+        """全一覧ページ URL を返す。ページネーションが動的なサイトはオーバーライドする。"""
+        return self.get_list_urls()
 
     def make_sento_dict(
         self,
@@ -66,6 +70,7 @@ class BaseParser(ABC):
         open_hours: Optional[str] = None,
         holiday: Optional[str] = None,
         source_url: Optional[str] = None,
+        facility_type: Optional[str] = None,
     ) -> dict:
         """共通フィールドを含む銭湯データ dict を生成する。"""
         return {
@@ -80,4 +85,5 @@ class BaseParser(ABC):
             "prefecture": self.prefecture,
             "region": self.region,
             "source_url": source_url,
+            "facility_type": facility_type,
         }

@@ -119,9 +119,11 @@ export class MapComponent implements OnInit, OnDestroy {
     });
   });
 
-  // lat/lng が null の銭湯はマーカー非表示
+  // lat/lng が null の銭湯はマーカー非表示（型述語で Sento & {lat: number; lng: number} に絞る）
   readonly markableSentos = computed(() =>
-    this.filteredSentos().filter(s => s.lat !== null && s.lng !== null)
+    this.filteredSentos().filter(
+      (s): s is Sento & { lat: number; lng: number } => s.lat !== null && s.lng !== null
+    )
   );
 
   // 後方互換（テスト用）

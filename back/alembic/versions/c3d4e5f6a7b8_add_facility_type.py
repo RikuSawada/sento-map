@@ -23,10 +23,16 @@ def upgrade() -> None:
         "sentos",
         sa.Column("facility_type", sa.String(20), nullable=True),
     )
+    op.create_check_constraint(
+        "ck_sentos_facility_type",
+        "sentos",
+        "facility_type IN ('sento', 'onsen', 'super_sento')",
+    )
     # 既存レコードは銭湯として扱う（1010.or.jp は普通公衆浴場のみ）
     op.execute("UPDATE sentos SET facility_type = 'sento' WHERE facility_type IS NULL")
 
 
 def downgrade() -> None:
     """Remove facility_type column."""
+    op.drop_constraint("ck_sentos_facility_type", "sentos")
     op.drop_column("sentos", "facility_type")

@@ -10,6 +10,7 @@ HTML 構造（調査済み）:
   - 緯度経度: div#spot-single-map の次の script タグ内 var center = {lat:X, lng:Y}
 """
 import logging
+import math
 import re
 from typing import Optional
 
@@ -41,7 +42,6 @@ class KyotoParser(BaseParser):
         if count_span:
             try:
                 total = int(count_span.get_text(strip=True))
-                import math
                 last_page = math.ceil(total / 10)
             except (ValueError, TypeError):
                 last_page = self._get_last_page_from_navi(soup)
@@ -116,4 +116,5 @@ class KyotoParser(BaseParser):
             name=name, address=address, lat=lat, lng=lng,
             phone=phone, open_hours=open_hours, holiday=holiday,
             source_url=page_url,
+            facility_type="sento",
         )

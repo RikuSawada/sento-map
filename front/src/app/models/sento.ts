@@ -12,7 +12,7 @@ export interface Sento {
   region: string | null;
   sourceUrl: string | null;
   geocodedBy: string | null;
-  facilityType: string | null;
+  facilityType: 'sento' | 'onsen' | 'super_sento' | null;
   createdAt: string;
   updatedAt: string;
 }
