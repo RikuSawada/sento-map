@@ -28,8 +28,6 @@ BASE_URL = "https://chiba1126sento.com"
 # 初回アクセスでトップページからエリアリンクを収集する
 TOP_URL = BASE_URL + "/"
 
-# 個別銭湯ページ URL パターン（WordPress 投稿・固定ページ）
-_SENTO_URL_PATTERN = re.compile(r"https?://chiba1126sento\.com/\?p=\d+|/\d{4}/\d{2}/\d{2}/")
 # Google Maps リンクから緯度経度を抽出
 _GMAPS_Q_PATTERN = re.compile(r"[?&]q=([-\d.]+),([-\d.]+)")
 _DESTINATION_PATTERN = re.compile(r"destination=([-\d.]+),([-\d.]+)")

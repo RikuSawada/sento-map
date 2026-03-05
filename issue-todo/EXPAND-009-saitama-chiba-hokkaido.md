@@ -25,6 +25,6 @@
 `feature/expand-009-saitama-chiba-hokkaido`
 
 ## ステータス
-- [ ] 実装
-- [ ] テスト
-- [ ] PR
+- [x] 実装
+- [x] テスト
+- [x] PR
