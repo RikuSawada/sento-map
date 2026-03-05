@@ -23,6 +23,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 from parsers.base import BaseParser
+from parsers.utils import extract_label_value
 
 logger = logging.getLogger(__name__)
 
@@ -133,14 +134,16 @@ class HyogoParser(BaseParser):
         JSON["lat"] = 実際の経度 (lng)
         JSON["lng"] = 実際の緯度 (lat)
         """
-        try:
-            # スワップ補正: JSON の "lng" が実際の lat
-            actual_lat = float(data.get("lng") or 0)
-            actual_lng = float(data.get("lat") or 0)
-            if actual_lat and actual_lng:
+        # スワップ補正: JSON の "lng" が実際の lat
+        raw_lat = data.get("lng")
+        raw_lng = data.get("lat")
+        if raw_lat is not None and raw_lng is not None:
+            try:
+                actual_lat = float(raw_lat)
+                actual_lng = float(raw_lng)
                 self._coord_cache[url] = (actual_lat, actual_lng)
-        except (TypeError, ValueError):
-            pass
+            except (TypeError, ValueError):
+                pass
 
         self._data_cache[url] = data
 
@@ -189,13 +192,13 @@ class HyogoParser(BaseParser):
 
         # 住所
         address = (
-            _extract_label_value(soup, "住所")
+            extract_label_value(soup, "住所")
             or cached_data.get("address")
             or ""
         )
 
         # 電話
-        phone = _extract_label_value(soup, "TEL") or _extract_label_value(soup, "電話")
+        phone = extract_label_value(soup, "TEL") or extract_label_value(soup, "電話")
         if not phone:
             tel_tag = soup.find("a", href=re.compile(r"^tel:"))
             if tel_tag:
@@ -204,10 +207,10 @@ class HyogoParser(BaseParser):
             phone = cached_data.get("tel") or cached_data.get("phone")
 
         # 営業時間・定休日
-        open_hours = _extract_label_value(soup, "営業時間") or cached_data.get("open_hours")
+        open_hours = extract_label_value(soup, "営業時間") or cached_data.get("open_hours")
         holiday = (
-            _extract_label_value(soup, "定休日")
-            or _extract_label_value(soup, "休日")
+            extract_label_value(soup, "定休日")
+            or extract_label_value(soup, "休日")
             or cached_data.get("holiday")
         )
 
@@ -239,15 +242,3 @@ class HyogoParser(BaseParser):
             ),
             "facility_type": "sento",
         }
-
-
-def _extract_label_value(soup: BeautifulSoup, label: str) -> Optional[str]:
-    """dt または th テキストが label に一致する dd/td の値を返す。"""
-    for dt in soup.find_all(["dt", "th"]):
-        if label in dt.get_text(strip=True):
-            sibling = dt.find_next_sibling(["dd", "td"])
-            if sibling:
-                val = sibling.get_text(strip=True)
-                if val:
-                    return val
-    return None

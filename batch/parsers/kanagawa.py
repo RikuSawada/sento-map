@@ -1,11 +1,10 @@
 """神奈川銭湯組合 (k-o-i.jp) パーサー。
 
 HTML 構造（調査済み）:
-- 一覧: エリア別ページ
+- 一覧: エリア別ページ（既知の3エリアをハードコードで対応。追加エリアが確認された場合はリストを更新する）
   - /search_area/yokohama/  （横浜市）
   - /search_area/kawasaki/  （川崎市）
   - /search_area/shonan/    （湘南・その他）
-  ※ 他のエリアが存在する場合もあるため、トップページからエリアリンクを収集
 - 個別: /koten/{slug}/
   - 銭湯名: h1 または h2 タグ
   - 住所: dt/dd 「住所」ペア、または .address
@@ -20,6 +19,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 from parsers.base import BaseParser
+from parsers.utils import extract_label_value
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +58,8 @@ class KanagawaParser(BaseParser):
                 href = urljoin(BASE_URL, href)
 
             if _DETAIL_URL_PATTERN.search(href) and href not in seen:
-                # エリア一覧ページ自体を除外
-                if "/search_area/" not in href:
-                    seen.add(href)
-                    urls.append(href)
+                seen.add(href)
+                urls.append(href)
 
         return urls
 
@@ -83,21 +81,21 @@ class KanagawaParser(BaseParser):
             return None
 
         # 住所・電話・営業時間・定休日
-        address = _extract_label_value(soup, "住所") or ""
-        phone = _extract_label_value(soup, "TEL") or _extract_label_value(soup, "電話")
+        address = extract_label_value(soup, "住所") or ""
+        phone = extract_label_value(soup, "TEL") or extract_label_value(soup, "電話")
         if not phone:
             tel_tag = soup.find("a", href=re.compile(r"^tel:"))
             if tel_tag:
                 phone = tel_tag["href"].replace("tel:", "").strip()
-        open_hours = _extract_label_value(soup, "営業時間")
-        holiday = _extract_label_value(soup, "定休日") or _extract_label_value(soup, "休日")
+        open_hours = extract_label_value(soup, "営業時間")
+        holiday = extract_label_value(soup, "定休日") or extract_label_value(soup, "休日")
 
-        # 緯度経度: Google Maps リンクから
+        # 緯度経度: Google Maps リンク（短縮 URL は座標を含まないため google.com/maps のみ対象）
         lat: Optional[float] = None
         lng: Optional[float] = None
         for maps_tag in soup.find_all("a", href=True):
             href: str = maps_tag["href"]
-            if "google.com/maps" not in href and "maps.app.goo.gl" not in href:
+            if "google.com/maps" not in href:
                 continue
             for pattern in (_GMAPS_Q_PATTERN, _DESTINATION_PATTERN, _GMAPS_LL_PATTERN, _GMAPS_DADDR_PATTERN):
                 m = pattern.search(href)
@@ -141,15 +139,3 @@ class KanagawaParser(BaseParser):
             ),
             "facility_type": "sento",
         }
-
-
-def _extract_label_value(soup: BeautifulSoup, label: str) -> Optional[str]:
-    """dt または th テキストが label に一致する dd/td の値を返す。"""
-    for dt in soup.find_all(["dt", "th"]):
-        if label in dt.get_text(strip=True):
-            sibling = dt.find_next_sibling(["dd", "td"])
-            if sibling:
-                val = sibling.get_text(strip=True)
-                if val:
-                    return val
-    return None
