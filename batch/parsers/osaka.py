@@ -1,8 +1,9 @@
 """大阪銭湯組合 (osaka268.com) パーサー。
 
 HTML 構造（調査済み）:
-- 一覧: /search/ の JavaScript `childaMarkers` 配列に全件の lat/lng + sento URL が含まれる
-  形式: childaMarkers = [{id:..., lat:..., lng:..., url:"...", ...}, ...]
+- 一覧: /search/ の JavaScript `childaMarkers` 配列に全件が含まれる
+  - 旧形式: {lat, lng, url}
+  - 新形式: {latitude, longitude, html:"<a href=...>..."}
   ページネーション: なし（全件一括）
 - 個別ページ: /sento/{encoded-name}/ （日本語URLエンコード）
   - 銭湯名: h1.sento-name または h1 直下テキスト
@@ -73,19 +74,16 @@ class OsakaParser(BaseParser):
         seen: set[str] = set()
 
         for marker in markers:
-            url = marker.get("url") or marker.get("link") or marker.get("href")
+            if not isinstance(marker, dict):
+                continue
+
+            url = self._extract_url_from_marker(marker)
             if not url:
                 continue
 
-            # 相対 URL を絶対 URL に変換
-            if url.startswith("/"):
-                url = BASE_URL + url
-            elif not url.startswith("http"):
-                url = urljoin(BASE_URL, url)
-
             try:
-                lat = float(marker.get("lat", 0) or 0)
-                lng = float(marker.get("lng", 0) or 0)
+                lat = float(marker.get("lat") or marker.get("latitude") or 0)
+                lng = float(marker.get("lng") or marker.get("longitude") or 0)
             except (TypeError, ValueError):
                 lat, lng = 0.0, 0.0
 
@@ -99,6 +97,35 @@ class OsakaParser(BaseParser):
         logger.info("childaMarkers から %d 件取得（座標キャッシュ %d 件）",
                     len(urls), len(self._coord_cache))
         return urls
+
+    @staticmethod
+    def _normalize_item_url(url: str) -> str:
+        """一覧で得た URL を絶対 URL へ正規化する。"""
+        if url.startswith("/"):
+            return BASE_URL + url
+        if url.startswith("http"):
+            return url
+        return urljoin(BASE_URL, url)
+
+    @staticmethod
+    def _extract_url_from_marker(marker: dict) -> Optional[str]:
+        """childaMarkers 1件から個別ページ URL を抽出する。"""
+        for key in ("url", "link", "href"):
+            raw_url = marker.get(key)
+            if isinstance(raw_url, str) and raw_url.strip():
+                return OsakaParser._normalize_item_url(raw_url.strip())
+
+        html_fragment = marker.get("html")
+        if isinstance(html_fragment, str) and html_fragment.strip():
+            frag_soup = BeautifulSoup(html_fragment, "lxml")
+            # 複数リンクがあっても先頭リンクを個別ページURLとして採用する。
+            anchor = frag_soup.find("a", href=True)
+            if anchor:
+                href = str(anchor["href"]).strip()
+                if href:
+                    return OsakaParser._normalize_item_url(href)
+
+        return None
 
     def _extract_item_urls_fallback(self, html: str) -> list[str]:
         """childaMarkers が取得できなかった場合の a タグからの URL 抽出。"""
@@ -189,5 +216,3 @@ class OsakaParser(BaseParser):
             ),
             "facility_type": "sento",
         }
-
-
