@@ -107,21 +107,23 @@ class OsakaParser(BaseParser):
             return url
         return urljoin(BASE_URL, url)
 
-    def _extract_url_from_marker(self, marker: dict) -> Optional[str]:
+    @staticmethod
+    def _extract_url_from_marker(marker: dict) -> Optional[str]:
         """childaMarkers 1件から個別ページ URL を抽出する。"""
         for key in ("url", "link", "href"):
             raw_url = marker.get(key)
             if isinstance(raw_url, str) and raw_url.strip():
-                return self._normalize_item_url(raw_url.strip())
+                return OsakaParser._normalize_item_url(raw_url.strip())
 
         html_fragment = marker.get("html")
         if isinstance(html_fragment, str) and html_fragment.strip():
             frag_soup = BeautifulSoup(html_fragment, "lxml")
+            # 複数リンクがあっても先頭リンクを個別ページURLとして採用する。
             anchor = frag_soup.find("a", href=True)
             if anchor:
                 href = str(anchor["href"]).strip()
                 if href:
-                    return self._normalize_item_url(href)
+                    return OsakaParser._normalize_item_url(href)
 
         return None
 
@@ -214,4 +216,3 @@ class OsakaParser(BaseParser):
             ),
             "facility_type": "sento",
         }
-
