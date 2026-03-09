@@ -128,6 +128,30 @@ def test_get_item_urls_extracts_from_child_markers(parser: OsakaParser) -> None:
     assert parser._coord_cache["https://osaka268.com/sento/b/"] == pytest.approx((34.70, 135.51))
 
 
+def test_get_item_urls_extracts_from_child_markers_new_format(parser: OsakaParser) -> None:
+    markers = [
+        {
+            "latitude": 34.6901,
+            "longitude": 135.5002,
+            "html": '<a href="https://osaka268.com/sento/new-a/">新A</a>',
+        },
+        {
+            "latitude": "34.7003",
+            "longitude": "135.5104",
+            "html": '<a href="/sento/new-b/">新B</a>',
+        },
+    ]
+    html = _make_search_html(markers)
+    urls = parser.get_item_urls(html, "https://osaka268.com/search/")
+
+    assert urls == [
+        "https://osaka268.com/sento/new-a/",
+        "https://osaka268.com/sento/new-b/",
+    ]
+    assert parser._coord_cache["https://osaka268.com/sento/new-a/"] == pytest.approx((34.6901, 135.5002))
+    assert parser._coord_cache["https://osaka268.com/sento/new-b/"] == pytest.approx((34.7003, 135.5104))
+
+
 def test_get_item_urls_deduplicates(parser: OsakaParser) -> None:
     markers = [
         {"url": "/sento/a/", "lat": 34.69, "lng": 135.50},
