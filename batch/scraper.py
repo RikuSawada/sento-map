@@ -19,10 +19,38 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from fetcher import fetch
+from osm_geocoder import import_new_prefecture
 from parsers import PARSERS, BaseParser
 from parsers.tokyo import TokyoParser
 
 REQUEST_INTERVAL = 2.0
+
+
+def _fallback_to_osm_import(
+    parser: BaseParser,
+    logger: logging.Logger,
+    session: Optional[object],
+    dry_run: bool,
+) -> tuple[int, int, int]:
+    """公式サイト取得失敗時に OSM 新規インポートへフォールバックする。"""
+    if parser.prefecture != "埼玉県":
+        return 0, 0, 1
+
+    if dry_run:
+        logger.error(
+            "埼玉県は公式サイトが 403 のため dry-run でのフォールバック不可。"
+            " `uv run python osm_geocoder.py --import-new --prefecture 埼玉県 --dry-run` を使用してください。"
+        )
+        return 0, 0, 1
+
+    if session is None:
+        logger.error("OSM フォールバックに必要な DB セッションがありません")
+        return 0, 0, 1
+
+    logger.warning("埼玉県公式サイトの取得に失敗したため、OSM 新規インポートへフォールバックします")
+    inserted, skipped, total = import_new_prefecture(session, parser.prefecture, dry_run=False)
+    fail = 0 if total > 0 else 1
+    return inserted, skipped, fail
 
 
 def run_parser(
@@ -63,7 +91,7 @@ def run_parser(
             p1 = fetch(page1_url, interval=REQUEST_INTERVAL)
             if not p1:
                 logger.error("ページ1の取得に失敗しました")
-                return 0, 0, 1
+                return _fallback_to_osm_import(parser, logger, session, dry_run)
             list_urls = parser.get_all_list_urls(p1)
             page1_html_cache[page1_url] = p1
         else:
