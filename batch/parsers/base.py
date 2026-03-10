@@ -79,6 +79,20 @@ class BaseParser(ABC):
                         return text
         return None
 
+    @staticmethod
+    def extract_table_value(soup: BeautifulSoup, label: str) -> Optional[str]:
+        """table の先頭セルラベル（th/td）から値セルを抽出する。"""
+        for row in soup.find_all("tr"):
+            cells = row.find_all(["th", "td"])
+            if len(cells) < 2:
+                continue
+            header = cells[0].get_text(strip=True)
+            if label in header:
+                value = cells[1].get_text(" ", strip=True)
+                if value:
+                    return value
+        return None
+
     def get_all_list_urls(self, page1_html: str) -> list[str]:
         """全一覧ページ URL を返す。ページネーションが動的なサイトはオーバーライドする。"""
         return self.get_list_urls()

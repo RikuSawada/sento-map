@@ -4,7 +4,7 @@ HTML 構造（調査済み）:
 - ベース: WordPress ベースのサイト
 - エリア一覧ページ: ?page_id={N} 形式
   - 各エリアページから個別銭湯ページへのリンクを収集
-- 個別ページ: 銭湯毎の投稿ページ
+- 個別ページ: 銭湯毎の投稿ページまたは固定ページ（?page_id={N}）
   - 銭湯名: h1 または h2 (post-title)
   - 住所・電話・営業時間・定休日: dl/dt/dd ペア または テキスト抽出
   - 緯度経度: Google Maps リンクまたは埋め込み map から取得
@@ -33,8 +33,9 @@ _GMAPS_Q_PATTERN = re.compile(r"[?&]q=([-\d.]+),([-\d.]+)")
 _DESTINATION_PATTERN = re.compile(r"destination=([-\d.]+),([-\d.]+)")
 _GMAPS_LL_PATTERN = re.compile(r"[?&]ll=([-\d.]+),([-\d.]+)")
 _GMAPS_EMBED_PATTERN = re.compile(r"pb=.*!3d([-\d.]+)!.*!4d([-\d.]+)")
-# エリアページ判定: ?page_id= 形式
+# 固定ページ URL のうち、クエリが page_id だけの URL（エリアページ判定・parse_sento 判定用）
 _AREA_PAGE_PATTERN = re.compile(r"\?page_id=\d+$")
+# page_id クエリを含む固定ページ URL（get_item_urls の詳細候補判定用）
 _PAGE_ID_PATTERN = re.compile(r"[?&]page_id=(\d+)(?:[&#].*)?$")
 _POST_URL_PATTERN = re.compile(r"/\d{4}/\d{2}/\d{2}/")
 
@@ -139,24 +140,24 @@ class ChibaParser(BaseParser):
             return None
 
         # 住所・電話・営業時間・定休日
-        address = self.extract_label_value(soup, "住所") or self._extract_table_value(soup, "住所") or ""
+        address = self.extract_label_value(soup, "住所") or self.extract_table_value(soup, "住所") or ""
         phone = (
             self.extract_label_value(soup, "TEL")
             or self.extract_label_value(soup, "電話")
-            or self._extract_table_value(soup, "TEL")
-            or self._extract_table_value(soup, "電話")
+            or self.extract_table_value(soup, "TEL")
+            or self.extract_table_value(soup, "電話")
         )
         if not phone:
             tel_tag = soup.find("a", href=re.compile(r"^tel:"))
             if tel_tag:
                 phone = tel_tag["href"].replace("tel:", "").strip()
-        open_hours = self.extract_label_value(soup, "営業時間") or self._extract_table_value(soup, "営業時間")
+        open_hours = self.extract_label_value(soup, "営業時間") or self.extract_table_value(soup, "営業時間")
         holiday = (
             self.extract_label_value(soup, "定休日")
             or self.extract_label_value(soup, "休日")
-            or self._extract_table_value(soup, "定休日")
-            or self._extract_table_value(soup, "休業日")
-            or self._extract_table_value(soup, "休日")
+            or self.extract_table_value(soup, "定休日")
+            or self.extract_table_value(soup, "休業日")
+            or self.extract_table_value(soup, "休日")
         )
 
         # 緯度経度
@@ -215,17 +216,3 @@ class ChibaParser(BaseParser):
         text = soup.get_text(separator="\n")
         indicators = ["営業時間", "定休日", "TEL", "電話", "住所"]
         return sum(1 for ind in indicators if ind in text) >= 2
-
-    @staticmethod
-    def _extract_table_value(soup: BeautifulSoup, label: str) -> Optional[str]:
-        """table の先頭セルラベル（住所/TEL 等）から値を抽出する。"""
-        for row in soup.find_all("tr"):
-            cells = row.find_all(["th", "td"])
-            if len(cells) < 2:
-                continue
-            header = cells[0].get_text(strip=True)
-            if label in header:
-                value = cells[1].get_text(" ", strip=True)
-                if value:
-                    return value
-        return None
