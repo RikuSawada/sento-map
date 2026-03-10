@@ -120,6 +120,7 @@ CHIBA_TOP_HTML = """
 <body>
   <a href="https://chiba1126sento.com/2024/01/01/sento-a/">銭湯A</a>
   <a href="https://chiba1126sento.com/2024/02/15/sento-b/">銭湯B</a>
+  <a href="https://chiba1126sento.com/?page_id=124" class="childPage_list_box" id="post-124">銭湯C</a>
   <a href="https://chiba1126sento.com/?page_id=5">エリアページ（除外）</a>
   <a href="https://chiba1126sento.com/?page_id=6">エリアページ2（除外）</a>
   <a href="/wp-admin/">管理（除外）</a>
@@ -133,8 +134,10 @@ def test_get_item_urls_returns_sento_urls_only(parser: ChibaParser) -> None:
     urls = parser.get_item_urls(CHIBA_TOP_HTML, "https://chiba1126sento.com/")
     assert "https://chiba1126sento.com/2024/01/01/sento-a/" in urls
     assert "https://chiba1126sento.com/2024/02/15/sento-b/" in urls
+    assert "https://chiba1126sento.com/?page_id=124" in urls
     # エリアページは含まない
-    assert all("page_id" not in u for u in urls)
+    assert "https://chiba1126sento.com/?page_id=5" not in urls
+    assert "https://chiba1126sento.com/?page_id=6" not in urls
     # 管理・外部URLは含まない
     assert all("wp-admin" not in u for u in urls)
     assert all("example.com" not in u for u in urls)
@@ -171,3 +174,43 @@ def test_get_all_list_urls_deduplicates(parser: ChibaParser) -> None:
     """
     urls = parser.get_all_list_urls(html)
     assert urls.count("https://chiba1126sento.com/?page_id=5") == 1
+
+
+def test_get_all_list_urls_excludes_non_area_page_ids(parser: ChibaParser) -> None:
+    html = """
+    <html><body>
+      <a href="https://chiba1126sento.com/?page_id=34">各店からのお知らせ</a>
+      <a href="https://chiba1126sento.com/?page_id=616">千葉県入浴料金</a>
+      <a href="https://chiba1126sento.com/?page_id=55">千葉市エリア</a>
+    </body></html>
+    """
+    urls = parser.get_all_list_urls(html)
+    assert "https://chiba1126sento.com/?page_id=55" in urls
+    assert "https://chiba1126sento.com/?page_id=34" not in urls
+    assert "https://chiba1126sento.com/?page_id=616" not in urls
+
+
+CHIBA_DETAIL_HTML_TABLE_BASED = """
+<html>
+<body>
+  <h1 class="page-header-title">江戸川湯</h1>
+  <table>
+    <tbody>
+      <tr><td>住所</td><td>流山市江戸川台東3-4</td></tr>
+      <tr><td>TEL</td><td>04-7152-4719</td></tr>
+      <tr><td>営業時間</td><td>14:00～22:00</td></tr>
+      <tr><td>休業日</td><td>毎週月曜日</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>
+"""
+
+
+def test_parse_sento_extracts_table_based_fields(parser: ChibaParser) -> None:
+    result = parser.parse_sento(CHIBA_DETAIL_HTML_TABLE_BASED, "https://chiba1126sento.com/?page_id=415")
+    assert result is not None
+    assert result["address"] == "流山市江戸川台東3-4"
+    assert result["phone"] == "04-7152-4719"
+    assert result["open_hours"] == "14:00～22:00"
+    assert result["holiday"] == "毎週月曜日"

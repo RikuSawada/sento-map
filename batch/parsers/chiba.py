@@ -35,6 +35,8 @@ _GMAPS_LL_PATTERN = re.compile(r"[?&]ll=([-\d.]+),([-\d.]+)")
 _GMAPS_EMBED_PATTERN = re.compile(r"pb=.*!3d([-\d.]+)!.*!4d([-\d.]+)")
 # エリアページ判定: ?page_id= 形式
 _AREA_PAGE_PATTERN = re.compile(r"\?page_id=\d+$")
+_PAGE_ID_PATTERN = re.compile(r"[?&]page_id=(\d+)(?:[&#].*)?$")
+_POST_URL_PATTERN = re.compile(r"/\d{4}/\d{2}/\d{2}/")
 
 
 class ChibaParser(BaseParser):
@@ -62,7 +64,9 @@ class ChibaParser(BaseParser):
             parsed = urlparse(href)
             if "chiba1126sento.com" not in parsed.netloc:
                 continue
-            if _AREA_PAGE_PATTERN.search(href) and href not in seen:
+            # 「〜エリア」リンクのみ一覧対象にする（お知らせ等の固定ページを除外）
+            label = a.get_text(strip=True)
+            if _AREA_PAGE_PATTERN.search(href) and "エリア" in label and href not in seen:
                 seen.add(href)
                 urls.append(href)
 
@@ -95,11 +99,21 @@ class ChibaParser(BaseParser):
             if any(x in href for x in ("/wp-admin", "/wp-login", "?page_id=1&")):
                 continue
 
-            # 投稿ページ（数字パス、?p=N 等）のみ収集。エリアページ（?page_id=N）は除外
-            if re.search(r"/\d{4}/\d{2}/\d{2}/|[?&]p=\d+", href):
+            # URL 形式1: 投稿ページ（日付パス）
+            if _POST_URL_PATTERN.search(href):
                 if href not in seen:
                     seen.add(href)
                     urls.append(href)
+                continue
+
+            # URL 形式2: 固定ページ（?page_id=N）
+            # 千葉は「childPage_list_box」カードが銭湯詳細ページ。
+            classes = a.get("class") or []
+            anchor_id = a.get("id") or ""
+            is_detail_card = ("childPage_list_box" in classes) or anchor_id.startswith("post-")
+            if _PAGE_ID_PATTERN.search(href) and is_detail_card and href not in seen:
+                seen.add(href)
+                urls.append(href)
 
         return urls
 
@@ -125,14 +139,25 @@ class ChibaParser(BaseParser):
             return None
 
         # 住所・電話・営業時間・定休日
-        address = self.extract_label_value(soup, "住所") or ""
-        phone = self.extract_label_value(soup, "TEL") or self.extract_label_value(soup, "電話")
+        address = self.extract_label_value(soup, "住所") or self._extract_table_value(soup, "住所") or ""
+        phone = (
+            self.extract_label_value(soup, "TEL")
+            or self.extract_label_value(soup, "電話")
+            or self._extract_table_value(soup, "TEL")
+            or self._extract_table_value(soup, "電話")
+        )
         if not phone:
             tel_tag = soup.find("a", href=re.compile(r"^tel:"))
             if tel_tag:
                 phone = tel_tag["href"].replace("tel:", "").strip()
-        open_hours = self.extract_label_value(soup, "営業時間")
-        holiday = self.extract_label_value(soup, "定休日") or self.extract_label_value(soup, "休日")
+        open_hours = self.extract_label_value(soup, "営業時間") or self._extract_table_value(soup, "営業時間")
+        holiday = (
+            self.extract_label_value(soup, "定休日")
+            or self.extract_label_value(soup, "休日")
+            or self._extract_table_value(soup, "定休日")
+            or self._extract_table_value(soup, "休業日")
+            or self._extract_table_value(soup, "休日")
+        )
 
         # 緯度経度
         lat: Optional[float] = None
@@ -191,4 +216,16 @@ class ChibaParser(BaseParser):
         indicators = ["営業時間", "定休日", "TEL", "電話", "住所"]
         return sum(1 for ind in indicators if ind in text) >= 2
 
-
+    @staticmethod
+    def _extract_table_value(soup: BeautifulSoup, label: str) -> Optional[str]:
+        """table の先頭セルラベル（住所/TEL 等）から値を抽出する。"""
+        for row in soup.find_all("tr"):
+            cells = row.find_all(["th", "td"])
+            if len(cells) < 2:
+                continue
+            header = cells[0].get_text(strip=True)
+            if label in header:
+                value = cells[1].get_text(" ", strip=True)
+                if value:
+                    return value
+        return None
