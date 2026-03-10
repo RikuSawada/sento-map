@@ -26,16 +26,12 @@ from parsers.tokyo import TokyoParser
 REQUEST_INTERVAL = 2.0
 
 
-def _fallback_to_osm_import(
-    parser: BaseParser,
+def _fallback_saitama_to_osm_import(
     logger: logging.Logger,
     session: Optional[object],
     dry_run: bool,
 ) -> tuple[int, int, int]:
-    """公式サイト取得失敗時に OSM 新規インポートへフォールバックする。"""
-    if parser.prefecture != "埼玉県":
-        return 0, 0, 1
-
+    """埼玉県公式サイト取得失敗時に OSM 新規インポートへフォールバックする。"""
     if dry_run:
         logger.error(
             "埼玉県は公式サイトが 403 のため dry-run でのフォールバック不可。"
@@ -48,7 +44,9 @@ def _fallback_to_osm_import(
         return 0, 0, 1
 
     logger.warning("埼玉県公式サイトの取得に失敗したため、OSM 新規インポートへフォールバックします")
-    inserted, skipped, total = import_new_prefecture(session, parser.prefecture, dry_run=False)
+    inserted, skipped, total = import_new_prefecture(session, "埼玉県", dry_run=False)
+    # import_new_prefecture は Overpass 取得失敗時に (0, 0, 0) を返すため、
+    # total=0 は「正常に対象なし」ではなく「外部取得失敗」とみなして fail=1 とする。
     fail = 0 if total > 0 else 1
     return inserted, skipped, fail
 
@@ -91,7 +89,9 @@ def run_parser(
             p1 = fetch(page1_url, interval=REQUEST_INTERVAL)
             if not p1:
                 logger.error("ページ1の取得に失敗しました")
-                return _fallback_to_osm_import(parser, logger, session, dry_run)
+                if parser.prefecture == "埼玉県":
+                    return _fallback_saitama_to_osm_import(logger, session, dry_run)
+                return 0, 0, 1
             list_urls = parser.get_all_list_urls(p1)
             page1_html_cache[page1_url] = p1
         else:
