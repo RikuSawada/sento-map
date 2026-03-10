@@ -32,3 +32,14 @@ def test_post_geocode_skips_on_dry_run_or_non_hokkaido(monkeypatch) -> None:
 
     _post_geocode_if_needed("北海道", logger, session=object(), dry_run=True)
     _post_geocode_if_needed("東京都", logger, session=object(), dry_run=False)
+
+
+def test_post_geocode_skips_when_session_is_none(monkeypatch) -> None:
+    logger = logging.getLogger("test")
+
+    def _unexpected_call(*_args, **_kwargs):
+        raise AssertionError("geocode_prefecture should not be called when session is None")
+
+    monkeypatch.setattr("scraper.geocode_prefecture", _unexpected_call)
+
+    _post_geocode_if_needed("北海道", logger, session=None, dry_run=False)

@@ -24,6 +24,7 @@ from parsers import PARSERS, BaseParser
 from parsers.tokyo import TokyoParser
 
 REQUEST_INTERVAL = 2.0
+_GEOCODE_REQUIRED_PREFECTURES: frozenset[str] = frozenset({"北海道"})
 
 
 def _post_geocode_if_needed(
@@ -33,7 +34,7 @@ def _post_geocode_if_needed(
     dry_run: bool,
 ) -> None:
     """必要な都道府県のみ、スクレイピング後に座標補完を実行する。"""
-    if dry_run or prefecture != "北海道":
+    if dry_run or prefecture not in _GEOCODE_REQUIRED_PREFECTURES:
         return
     if session is None:
         logger.error("北海道の座標補完をスキップ: DB セッションがありません")
