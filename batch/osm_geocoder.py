@@ -266,17 +266,21 @@ def geocode_prefecture(
 
 
 def import_new_prefecture(
-    session: Session,
+    session: Optional[Session],
     prefecture: str,
     dry_run: bool = False,
 ) -> tuple[int, int, int]:
     """指定都道府県の OSM 施設データを新規 INSERT する。
 
     source_url = "osm:{element_id}" で重複チェックし、未登録のみ INSERT する。
+    dry-run かつ session=None の場合は重複チェックを行わない。
 
     Returns:
         (inserted, skipped, total) のタプル
     """
+    if not dry_run and session is None:
+        raise ValueError("non-dry-run では DB セッションが必要です")
+
     elements = fetch_osm_bath_facilities(prefecture)
     if not elements:
         logger.warning("%s: OSM データ取得失敗", prefecture)
@@ -308,16 +312,16 @@ def import_new_prefecture(
             skipped += 1
             continue
 
-        # 重複チェック
-        existing = session.execute(
-            text("SELECT id FROM sentos WHERE source_url = :source_url"),
-            {"source_url": source_url},
-        ).fetchone()
-
-        if existing:
-            logger.debug("既存レコード SKIP: %s (source_url=%s)", name, source_url)
-            skipped += 1
-            continue
+        if session is not None:
+            # 重複チェック（dry-run + session=None の場合はスキップ）
+            existing = session.execute(
+                text("SELECT id FROM sentos WHERE source_url = :source_url"),
+                {"source_url": source_url},
+            ).fetchone()
+            if existing:
+                logger.debug("既存レコード SKIP: %s (source_url=%s)", name, source_url)
+                skipped += 1
+                continue
 
         address = (
             tags.get("addr:full")
@@ -406,11 +410,15 @@ def main() -> None:
         stream=sys.stderr,
     )
 
-    engine = get_engine()
-    session = Session(engine)
+    session: Optional[Session] = None
+    if not (args.import_new and args.dry_run):
+        engine = get_engine()
+        session = Session(engine)
 
     if args.dry_run:
         logger.info("ドライランモード: DB 更新はスキップします")
+        if args.import_new:
+            logger.info("import-new dry-run: DB 接続なしで OSM データ検証を実行します")
 
     if args.all:
         if args.import_new:
@@ -444,7 +452,8 @@ def main() -> None:
             if args.all and i < len(prefectures) - 1 and total > 0:
                 time.sleep(5)
     finally:
-        session.close()
+        if session is not None:
+            session.close()
 
     if args.import_new:
         logger.info(
