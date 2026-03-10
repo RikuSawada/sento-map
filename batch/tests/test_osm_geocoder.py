@@ -2,6 +2,9 @@
 import pytest
 
 from osm_geocoder import (
+    PARSER_IMPLEMENTED_PREFECTURES,
+    PREFECTURE_NAMES,
+    PREFECTURE_TO_REGION,
     _build_address,
     extract_coords,
     find_best_match,
@@ -151,3 +154,15 @@ def test_build_address_addr_full_takes_precedence_in_caller() -> None:
     tags = {"addr:province": "愛知県", "addr:city": "名古屋市"}
     result = _build_address(tags, "愛知県")
     assert result == "愛知県名古屋市"
+
+
+def test_wakayama_in_prefecture_names() -> None:
+    assert "和歌山県" in PREFECTURE_NAMES
+
+
+def test_wakayama_region_is_kinki() -> None:
+    assert PREFECTURE_TO_REGION["和歌山県"] == "近畿"
+
+
+def test_wakayama_not_in_parser_implemented_prefectures() -> None:
+    assert "和歌山県" not in PARSER_IMPLEMENTED_PREFECTURES
