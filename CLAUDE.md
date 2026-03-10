@@ -16,6 +16,7 @@ https://github.com/RikuSawada/sento-map
 ## Codex活用
 
 迷ったらCodex。詳細は `.claude/rules/codex-guidelines.md` 参照。
+基本的にCodexにソースコードの回収を任せて下さい。
 
 ## 役割
 
