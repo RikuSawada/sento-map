@@ -71,6 +71,29 @@ def test_parse_sento_coords_from_iframe_center(parser: HokkaidoParser) -> None:
     assert result["lng"] == pytest.approx(142.3600)
 
 
+HOKKAIDO_DETAIL_HTML_SEC_TITLE = """
+<html>
+<body>
+  <h1 class="logo"></h1>
+  <h2 class="title">銭湯検索</h2>
+  <h2 class="sec_title">円山温泉（まるやまおんせん）</h2>
+  <dl>
+    <dt>住所</dt><dd>北海道札幌市中央区北1条</dd>
+  </dl>
+</body>
+</html>
+"""
+
+
+def test_parse_sento_prioritizes_sec_title_over_navigation_h2(parser: HokkaidoParser) -> None:
+    result = parser.parse_sento(
+        HOKKAIDO_DETAIL_HTML_SEC_TITLE,
+        "https://www.kita-no-sento.com/sento/102-2/",
+    )
+    assert result is not None
+    assert result["name"] == "円山温泉（まるやまおんせん）"
+
+
 # ---------------------------------------------------------------------------
 # parse_sento: name が取得できない場合 None を返す
 # ---------------------------------------------------------------------------
