@@ -30,6 +30,7 @@ _GMAPS_Q_PATTERN = re.compile(r"[?&]q=([-\d.]+),([-\d.]+)")
 _DESTINATION_PATTERN = re.compile(r"destination=([-\d.]+),([-\d.]+)")
 _GMAPS_LL_PATTERN = re.compile(r"[?&]ll=([-\d.]+),([-\d.]+)")
 _GMAPS_CENTER_PATTERN = re.compile(r"center=([-\d.]+)(?:%2C|,)([-\d.]+)")
+# 銭湯名ではない UI 文言（ナビゲーション等）を除外するための候補
 _INVALID_NAME_CANDIDATES = {"銭湯検索"}
 
 
@@ -136,4 +137,3 @@ class HokkaidoParser(BaseParser):
             ),
             "facility_type": "sento",
         }
-
