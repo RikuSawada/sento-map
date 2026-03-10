@@ -30,6 +30,7 @@ _GMAPS_Q_PATTERN = re.compile(r"[?&]q=([-\d.]+),([-\d.]+)")
 _DESTINATION_PATTERN = re.compile(r"destination=([-\d.]+),([-\d.]+)")
 _GMAPS_LL_PATTERN = re.compile(r"[?&]ll=([-\d.]+),([-\d.]+)")
 _GMAPS_CENTER_PATTERN = re.compile(r"center=([-\d.]+)(?:%2C|,)([-\d.]+)")
+_INVALID_NAME_CANDIDATES = {"銭湯検索"}
 
 
 class HokkaidoParser(BaseParser):
@@ -63,11 +64,11 @@ class HokkaidoParser(BaseParser):
 
         # 銭湯名
         name: Optional[str] = None
-        for selector in ("h1.sento-name", ".sento-title", "h1", "h2"):
+        for selector in ("h2.sec_title", "h1.sento-name", ".sento-title", "h1", "h2"):
             tag = soup.select_one(selector)
             if tag:
                 raw = tag.get_text(strip=True)
-                if raw and len(raw) < 60:
+                if raw and len(raw) < 60 and raw not in _INVALID_NAME_CANDIDATES:
                     name = raw
                     break
 
@@ -135,5 +136,4 @@ class HokkaidoParser(BaseParser):
             ),
             "facility_type": "sento",
         }
-
 
