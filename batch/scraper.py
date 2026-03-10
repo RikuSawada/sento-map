@@ -19,11 +19,30 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from fetcher import fetch
-from osm_geocoder import import_new_prefecture
+from osm_geocoder import geocode_prefecture, import_new_prefecture
 from parsers import PARSERS, BaseParser
 from parsers.tokyo import TokyoParser
 
 REQUEST_INTERVAL = 2.0
+_GEOCODE_REQUIRED_PREFECTURES: frozenset[str] = frozenset({"北海道"})
+
+
+def _post_geocode_if_needed(
+    prefecture: str,
+    logger: logging.Logger,
+    session: Optional[object],
+    dry_run: bool,
+) -> None:
+    """必要な都道府県のみ、スクレイピング後に座標補完を実行する。"""
+    if dry_run or prefecture not in _GEOCODE_REQUIRED_PREFECTURES:
+        return
+    if session is None:
+        logger.error("北海道の座標補完をスキップ: DB セッションがありません")
+        return
+
+    logger.info("北海道は公式サイトに座標がないため、OSM で座標補完を実行します")
+    matched, skipped, total = geocode_prefecture(session, prefecture, dry_run=False)
+    logger.info("%s: OSM座標補完=%d / スキップ=%d / 対象=%d", prefecture, matched, skipped, total)
 
 
 def _fallback_saitama_to_osm_import(
@@ -213,6 +232,7 @@ def main() -> None:
         logger.info("=== %s を処理中 ===", pref)
         parser = PARSERS[pref]()
         s, sk, f = run_parser(parser, logger, session, args.dry_run, args.limit)
+        _post_geocode_if_needed(pref, logger, session, args.dry_run)
         total_success += s
         total_skip += sk
         total_fail += f
