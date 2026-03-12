@@ -177,6 +177,7 @@ def test_import_new_prefecture_dry_run_without_session(monkeypatch) -> None:
 
     inserted, skipped, total = import_new_prefecture(None, "青森県", dry_run=True)
 
+    # dry-run では DB へ INSERT せず、INSERT 対象件数としてカウントする。
     assert inserted == 1
     assert skipped == 0
     assert total == 1

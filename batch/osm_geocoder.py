@@ -410,8 +410,11 @@ def main() -> None:
         stream=sys.stderr,
     )
 
+    # import-new dry-run は OSM データ検証のみで DB 不要。
+    # 一方、geocode_prefecture は dry-run でも DB から対象取得が必要なため DB 接続が必要。
+    needs_db = not (args.import_new and args.dry_run)
     session: Optional[Session] = None
-    if not (args.import_new and args.dry_run):
+    if needs_db:
         engine = get_engine()
         session = Session(engine)
 
