@@ -5,6 +5,7 @@ from osm_geocoder import (
     _build_address,
     extract_coords,
     find_best_match,
+    import_new_prefecture,
     resolve_facility_type,
 )
 
@@ -151,3 +152,37 @@ def test_build_address_addr_full_takes_precedence_in_caller() -> None:
     tags = {"addr:province": "愛知県", "addr:city": "名古屋市"}
     result = _build_address(tags, "愛知県")
     assert result == "愛知県名古屋市"
+
+
+# ---------------------------------------------------------------------------
+# import_new_prefecture
+# ---------------------------------------------------------------------------
+
+def test_import_new_prefecture_dry_run_without_session(monkeypatch) -> None:
+    elements = [
+        {
+            "type": "node",
+            "id": 123,
+            "lat": 40.8246,
+            "lon": 140.7400,
+            "tags": {
+                "name": "青森湯",
+                "amenity": "public_bath",
+                "bath:type": "onsen",
+                "addr:city": "青森市",
+            },
+        }
+    ]
+    monkeypatch.setattr("osm_geocoder.fetch_osm_bath_facilities", lambda prefecture: elements)
+
+    inserted, skipped, total = import_new_prefecture(None, "青森県", dry_run=True)
+
+    # dry-run では DB へ INSERT せず、INSERT 対象件数としてカウントする。
+    assert inserted == 1
+    assert skipped == 0
+    assert total == 1
+
+
+def test_import_new_prefecture_requires_session_in_non_dry_run() -> None:
+    with pytest.raises(ValueError):
+        import_new_prefecture(None, "青森県", dry_run=False)
