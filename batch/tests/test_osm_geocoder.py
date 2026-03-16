@@ -1,4 +1,6 @@
 """osm_geocoder モジュールのユニットテスト。"""
+from unittest.mock import Mock
+
 import pytest
 
 from osm_geocoder import (
@@ -8,6 +10,7 @@ from osm_geocoder import (
     _build_address,
     extract_coords,
     find_best_match,
+    import_new_prefecture,
     resolve_facility_type,
 )
 
@@ -170,3 +173,32 @@ def test_yamagata_region_is_tohoku() -> None:
 
 def test_yamagata_not_in_parser_implemented_prefectures() -> None:
     assert "山形県" not in PARSER_IMPLEMENTED_PREFECTURES
+
+
+def test_import_new_yamagata_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    elements = [
+        {
+            "type": "node",
+            "id": 1,
+            "lat": 38.2554,
+            "lon": 140.3396,
+            "tags": {
+                "name": "山形湯",
+                "amenity": "public_bath",
+            },
+        }
+    ]
+    monkeypatch.setattr("osm_geocoder.fetch_osm_bath_facilities", lambda _: elements)
+
+    fetchone_result = Mock()
+    fetchone_result.fetchone.return_value = None
+    session = Mock()
+    session.execute.return_value = fetchone_result
+
+    inserted, skipped, total = import_new_prefecture(session, "山形県", dry_run=True)
+
+    assert inserted == 1
+    assert skipped == 0
+    assert total == 1
+    assert session.execute.call_count == 1
+    session.commit.assert_not_called()
