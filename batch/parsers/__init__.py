@@ -10,6 +10,7 @@ from parsers.hyogo import HyogoParser
 from parsers.saitama import SaitamaParser
 from parsers.chiba import ChibaParser
 from parsers.hokkaido import HokkaidoParser
+from parsers.kagawa import KagawaParser
 
 PARSERS: dict[str, type[BaseParser]] = {
     "東京都": TokyoParser,
@@ -22,10 +23,11 @@ PARSERS: dict[str, type[BaseParser]] = {
     "埼玉県": SaitamaParser,
     "千葉県": ChibaParser,
     "北海道": HokkaidoParser,
+    "香川県": KagawaParser,
 }
 
 __all__ = [
     "BaseParser", "TokyoParser", "KyotoParser", "FukuokaParser",
     "OsakaParser", "AichiParser", "KanagawaParser", "HyogoParser",
-    "SaitamaParser", "ChibaParser", "HokkaidoParser", "PARSERS",
+    "SaitamaParser", "ChibaParser", "HokkaidoParser", "KagawaParser", "PARSERS",
 ]
