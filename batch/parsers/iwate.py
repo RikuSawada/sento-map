@@ -3,6 +3,7 @@
 調査メモ:
 - 候補ドメイン `iwate-sento.com` / `iwate1010.jp` は有効な公開サイトを確認できず。
 - 公開検索で確認できた岩手県の公衆浴場組合関連ページを一覧起点にする。
+- TODO: https://www.seiei.or.jp/robots.txt と利用規約の確認を実施すること。
 
 実装方針:
 - 一覧ページから同一ドメイン内の詳細ページ URL を収集
@@ -24,6 +25,11 @@ BASE_URL = "https://www.seiei.or.jp"
 LIST_URL = f"{BASE_URL}/iwate/yokujou.html"
 
 _DETAIL_HINT_PATTERN = re.compile(r"(yokujou|bath|sento|onsen)", re.IGNORECASE)
+_EXCLUDED_PATH_PATTERN = re.compile(
+    r"(?:/iwate/(?:index|home|oshirase|news|topics|contact|privacy))|"
+    r"(?:/(?:contact|privacy)(?:[/-]|$))",
+    re.IGNORECASE,
+)
 _ADDR_TEXT_PATTERN = re.compile(r"住所\s*[:：]\s*([^\n\r]+)")
 _PHONE_TEXT_PATTERN = re.compile(r"(?:TEL|電話(?:番号)?)\s*[:：]\s*([0-9\-（）()\s]{8,})", re.IGNORECASE)
 _OPEN_HOURS_PATTERN = re.compile(r"(?:営業時間|営業)\s*[:：]\s*([^\n\r]+)")
@@ -61,13 +67,21 @@ class IwateParser(BaseParser):
                 continue
             if "/iwate/" not in parsed.path:
                 continue
+            if _EXCLUDED_PATH_PATTERN.search(parsed.path):
+                continue
 
             # 一覧起点ページ自体は除外。詳細候補のみに絞る。
             if href.rstrip("/") == LIST_URL.rstrip("/"):
                 continue
 
             anchor_text = a.get_text(" ", strip=True)
-            if not _DETAIL_HINT_PATTERN.search(href) and not any(k in anchor_text for k in ("湯", "浴場", "銭湯", "温泉")):
+            path = parsed.path.lower()
+            looks_like_detail_path = (
+                path.endswith(".html")
+                or "/yokujou/" in path
+                or _DETAIL_HINT_PATTERN.search(href) is not None
+            )
+            if not looks_like_detail_path and not any(k in anchor_text for k in ("湯", "浴場", "銭湯", "温泉")):
                 continue
 
             if href not in seen:
@@ -112,7 +126,15 @@ class IwateParser(BaseParser):
             raw = tag.get_text(" ", strip=True)
             if not raw:
                 continue
-            cleaned = re.sub(r"\s*[|｜].*$", "", raw).strip()
+            if selector == "title":
+                parts = [p.strip() for p in re.split(r"[|｜]", raw) if p.strip()]
+                if not parts:
+                    continue
+                # title が「サイト名 | 銭湯名」の順でも銭湯名を優先して拾う
+                sento_parts = [p for p in parts if any(k in p for k in ("湯", "浴場", "銭湯", "温泉"))]
+                cleaned = sento_parts[0] if sento_parts else parts[0]
+            else:
+                cleaned = re.sub(r"\s*[|｜].*$", "", raw).strip()
             if 1 <= len(cleaned) <= 80:
                 return cleaned
         return None

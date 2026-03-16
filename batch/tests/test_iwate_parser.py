@@ -23,6 +23,7 @@ IWATE_LIST_HTML = """
 <html><body>
   <a href="/iwate/yokujou/store-a.html">盛岡湯</a>
   <a href="https://www.seiei.or.jp/iwate/yokujou/store-b.html">花巻湯</a>
+  <a href="/iwate/store-c.html">施設C</a>
   <a href="/iwate/yokujou/store-a.html">盛岡湯(重複)</a>
   <a href="https://www.google.com/maps?q=39.7036,141.1527">外部地図（除外）</a>
   <a href="/iwate/oshirase.html">お知らせ（除外）</a>
@@ -36,7 +37,8 @@ def test_get_item_urls_extracts_detail_links(parser: IwateParser) -> None:
 
     assert "https://www.seiei.or.jp/iwate/yokujou/store-a.html" in urls
     assert "https://www.seiei.or.jp/iwate/yokujou/store-b.html" in urls
-    assert len(urls) == 2
+    assert "https://www.seiei.or.jp/iwate/store-c.html" in urls
+    assert len(urls) == 3
 
 
 IWATE_DETAIL_HTML_HAPPY = """
@@ -108,3 +110,24 @@ def test_parse_sento_returns_none_when_required_missing(parser: IwateParser) -> 
     )
 
     assert result is None
+
+
+IWATE_DETAIL_HTML_IFRAME_COORDS = """
+<html><body>
+  <h1>一関湯</h1>
+  <p>住所：岩手県一関市1-2-3</p>
+  <iframe src="https://www.google.com/maps/embed?pb=!1m18!...!3d38.9340!...!4d141.1300!..."></iframe>
+</body></html>
+"""
+
+
+def test_parse_sento_extracts_coords_from_iframe(parser: IwateParser) -> None:
+    result = parser.parse_sento(
+        IWATE_DETAIL_HTML_IFRAME_COORDS,
+        "https://www.seiei.or.jp/iwate/store-c.html",
+    )
+
+    assert result is not None
+    assert result["address"] == "岩手県一関市1-2-3"
+    assert result["lat"] == pytest.approx(38.9340)
+    assert result["lng"] == pytest.approx(141.1300)
