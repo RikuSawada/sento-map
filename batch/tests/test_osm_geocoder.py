@@ -1,10 +1,16 @@
 """osm_geocoder モジュールのユニットテスト。"""
+from unittest.mock import Mock
+
 import pytest
 
 from osm_geocoder import (
+    PARSER_IMPLEMENTED_PREFECTURES,
+    PREFECTURE_NAMES,
+    PREFECTURE_TO_REGION,
     _build_address,
     extract_coords,
     find_best_match,
+    import_new_prefecture,
     resolve_facility_type,
 )
 
@@ -151,3 +157,45 @@ def test_build_address_addr_full_takes_precedence_in_caller() -> None:
     tags = {"addr:province": "愛知県", "addr:city": "名古屋市"}
     result = _build_address(tags, "愛知県")
     assert result == "愛知県名古屋市"
+
+
+# ---------------------------------------------------------------------------
+# OSM import target prefectures
+# ---------------------------------------------------------------------------
+
+def test_saga_in_prefecture_names() -> None:
+    assert "佐賀県" in PREFECTURE_NAMES
+
+
+def test_saga_region_is_kyushu() -> None:
+    assert PREFECTURE_TO_REGION["佐賀県"] == "九州"
+
+
+def test_saga_not_in_parser_implemented_prefectures() -> None:
+    assert "佐賀県" not in PARSER_IMPLEMENTED_PREFECTURES
+
+
+def test_import_new_saga_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    elements = [
+        {
+            "type": "node",
+            "id": 4201,
+            "lat": 33.2494,
+            "lon": 130.2988,
+            "tags": {"name": "佐賀湯", "amenity": "public_bath"},
+        }
+    ]
+    monkeypatch.setattr("osm_geocoder.fetch_osm_bath_facilities", lambda _: elements)
+
+    fetchone_result = Mock()
+    fetchone_result.fetchone.return_value = None
+    session = Mock()
+    session.execute.return_value = fetchone_result
+
+    inserted, skipped, total = import_new_prefecture(session, "佐賀県", dry_run=True)
+
+    assert inserted == 1
+    assert skipped == 0
+    assert total == 1
+    assert session.execute.call_count == 1
+    session.commit.assert_not_called()
