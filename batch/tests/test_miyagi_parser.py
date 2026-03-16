@@ -1,5 +1,6 @@
 """MiyagiParser のユニットテスト。"""
 import pytest
+from bs4 import BeautifulSoup
 
 from parsers import PARSERS
 from parsers.miyagi import MiyagiParser
@@ -71,6 +72,27 @@ MIYAGI_DETAIL_HTML_NO_NAME = """
 """
 
 
+MIYAGI_DETAIL_HTML_NO_ADDRESS = """
+<html>
+<body>
+  <h1>青葉湯</h1>
+  <dl><dt>TEL</dt><dd>022-000-0000</dd></dl>
+</body>
+</html>
+"""
+
+
+MIYAGI_DETAIL_HTML_IFRAME_COORD = """
+<html>
+<body>
+  <h1>泉湯</h1>
+  <dl><dt>住所</dt><dd>宮城県仙台市泉区4-5-6</dd></dl>
+  <iframe src="https://www.google.com/maps/embed?pb=!1m18!2d140.881!3d38.301"></iframe>
+</body>
+</html>
+"""
+
+
 def test_parse_sento_happy_path(parser: MiyagiParser) -> None:
     result = parser.parse_sento(MIYAGI_DETAIL_HTML_HAPPY, "https://miyagi1010.com/2025/01/10/aoba-yu/")
 
@@ -92,12 +114,24 @@ def test_parse_sento_returns_none_when_name_missing(parser: MiyagiParser) -> Non
     assert result is None
 
 
+def test_parse_sento_returns_none_when_address_missing(parser: MiyagiParser) -> None:
+    result = parser.parse_sento(MIYAGI_DETAIL_HTML_NO_ADDRESS, "https://miyagi1010.com/2025/01/10/aoba-yu/")
+    assert result is None
+
+
 def test_parse_sento_without_coordinates(parser: MiyagiParser) -> None:
     result = parser.parse_sento(MIYAGI_DETAIL_HTML_NO_COORD, "https://miyagi1010.com/2025/02/11/tsutsujigaoka-yu/")
     assert result is not None
     assert result["lat"] is None
     assert result["lng"] is None
     assert result["address"] == "宮城県仙台市宮城野区2-3-4"
+
+
+def test_parse_sento_extracts_coordinates_from_iframe(parser: MiyagiParser) -> None:
+    result = parser.parse_sento(MIYAGI_DETAIL_HTML_IFRAME_COORD, "https://miyagi1010.com/2025/03/01/izumi-yu/")
+    assert result is not None
+    assert result["lat"] == pytest.approx(38.301)
+    assert result["lng"] == pytest.approx(140.881)
 
 
 def test_get_all_list_urls_collects_list_pages(parser: MiyagiParser) -> None:
@@ -114,6 +148,18 @@ def test_get_item_urls_extracts_detail_urls(parser: MiyagiParser) -> None:
     assert "https://miyagi1010.com/2025/02/01/sendai-yu" in urls
     assert all("/category/" not in url for url in urls)
     assert all("/wp-admin" not in url for url in urls)
+
+
+def test_looks_like_sento_page(parser: MiyagiParser) -> None:
+    html = "<html><body><p>住所</p><p>営業時間</p></body></html>"
+    soup = BeautifulSoup(html, "lxml")
+    assert parser._looks_like_sento_page(soup) is True
+
+
+def test_looks_like_sento_page_false_when_hints_are_insufficient(parser: MiyagiParser) -> None:
+    html = "<html><body><p>住所</p></body></html>"
+    soup = BeautifulSoup(html, "lxml")
+    assert parser._looks_like_sento_page(soup) is False
 
 
 def test_parsers_contains_miyagi() -> None:

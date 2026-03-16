@@ -17,9 +17,10 @@ _POST_URL_PATTERN = re.compile(r"/\d{4}/\d{2}/\d{2}/")
 _GMAPS_Q_PATTERN = re.compile(r"[?&]q=([-\d.]+),([-\d.]+)")
 _GMAPS_LL_PATTERN = re.compile(r"[?&]ll=([-\d.]+),([-\d.]+)")
 _GMAPS_DEST_PATTERN = re.compile(r"[?&]destination=([-\d.]+),([-\d.]+)")
-_GMAPS_AT_PATTERN = re.compile(r"/@([-\d.]+),([-\d.]+),")
+_GMAPS_AT_PATTERN = re.compile(r"/@([-\d.]+),([-\d.]+)")
 _GMAPS_QUERY_PATTERN = re.compile(r"[?&]query=([-\d.]+),([-\d.]+)")
 _GMAPS_EMBED_PATTERN = re.compile(r"!3d([-\d.]+)!.*!4d([-\d.]+)")
+_GMAPS_EMBED_2D3D_PATTERN = re.compile(r"!2d([-\d.]+)!3d([-\d.]+)")
 _LIST_PATH_KEYWORDS = (
     "/category/",
     "/tag/",
@@ -103,7 +104,7 @@ class MiyagiParser(BaseParser):
             logger.warning("name が取得できません: %s", page_url)
             return None
 
-        address = self.extract_label_value(soup, "住所") or self.extract_table_value(soup, "住所") or ""
+        address = self.extract_label_value(soup, "住所") or self.extract_table_value(soup, "住所")
         if not address:
             logger.warning("address が取得できません: %s", page_url)
             return None
@@ -173,11 +174,16 @@ class MiyagiParser(BaseParser):
             _GMAPS_QUERY_PATTERN,
             _GMAPS_AT_PATTERN,
             _GMAPS_EMBED_PATTERN,
+            _GMAPS_EMBED_2D3D_PATTERN,
         ):
             matched = pattern.search(url)
             if matched:
                 try:
-                    return float(matched.group(1)), float(matched.group(2))
+                    first = float(matched.group(1))
+                    second = float(matched.group(2))
+                    if pattern is _GMAPS_EMBED_2D3D_PATTERN:
+                        return second, first
+                    return first, second
                 except ValueError:
                     continue
 
@@ -237,7 +243,7 @@ class MiyagiParser(BaseParser):
             return False
         if path in ("/about", "/contact", "/privacy-policy", "/sitemap"):
             return False
-        return len(path.strip("/").split("/")) >= 1
+        return False
 
     def _looks_like_sento_page(self, soup: BeautifulSoup) -> bool:
         text = soup.get_text(separator="\n")
