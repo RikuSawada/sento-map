@@ -2,7 +2,7 @@
 import logging
 import re
 from typing import Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -17,6 +17,9 @@ LIST_URL = f"{BASE_URL}/"
 _GMAPS_Q_PATTERN = re.compile(r"[?&]q=([-\d.]+),([-\d.]+)")
 _DESTINATION_PATTERN = re.compile(r"destination=([-\d.]+),([-\d.]+)")
 _GMAPS_LL_PATTERN = re.compile(r"[?&]ll=([-\d.]+),([-\d.]+)")
+_GMAPS_AT_PATTERN = re.compile(r"/@([-\d.]+),([-\d.]+)")
+_GMAPS_EMBED_PATTERN = re.compile(r"!3d([-\d.]+)!.*!4d([-\d.]+)")
+_GMAPS_EMBED_2D3D_PATTERN = re.compile(r"!2d([-\d.]+)!3d([-\d.]+)")
 
 # 一覧ページから拾う個別ページ URL の候補
 _DETAIL_PATH_PATTERN = re.compile(
@@ -87,8 +90,11 @@ class FukushimaParser(BaseParser):
         address = (
             self.extract_label_value(soup, "住所")
             or self.extract_table_value(soup, "住所")
-            or ""
+            or None
         )
+        if not address:
+            logger.warning("address が取得できません: %s", page_url)
+            return None
         phone = (
             self.extract_label_value(soup, "TEL")
             or self.extract_label_value(soup, "電話")
@@ -117,19 +123,22 @@ class FukushimaParser(BaseParser):
 
         for maps_tag in soup.find_all("a", href=True):
             href: str = maps_tag["href"]
-            if "google.com/maps" not in href:
+            if "google." not in href or "/maps" not in href:
                 continue
-            for pat in (_GMAPS_Q_PATTERN, _DESTINATION_PATTERN, _GMAPS_LL_PATTERN):
-                m = pat.search(href)
-                if m:
-                    try:
-                        lat = float(m.group(1))
-                        lng = float(m.group(2))
-                    except ValueError:
-                        pass
-                    break
-            if lat is not None:
+            coords = self._extract_coordinates_from_url(href)
+            if coords is not None:
+                lat, lng = coords
                 break
+
+        if lat is None:
+            for iframe in soup.find_all("iframe", src=True):
+                src = str(iframe["src"])
+                if "google." not in src or "/maps" not in src:
+                    continue
+                coords = self._extract_coordinates_from_url(src)
+                if coords is not None:
+                    lat, lng = coords
+                    break
 
         return {
             **self.make_sento_dict(
@@ -144,3 +153,39 @@ class FukushimaParser(BaseParser):
             ),
             "facility_type": "sento",
         }
+
+    def _extract_coordinates_from_url(self, url: str) -> Optional[tuple[float, float]]:
+        for pattern in (
+            _GMAPS_Q_PATTERN,
+            _DESTINATION_PATTERN,
+            _GMAPS_LL_PATTERN,
+            _GMAPS_AT_PATTERN,
+            _GMAPS_EMBED_PATTERN,
+            _GMAPS_EMBED_2D3D_PATTERN,
+        ):
+            matched = pattern.search(url)
+            if matched:
+                try:
+                    first = float(matched.group(1))
+                    second = float(matched.group(2))
+                    if pattern is _GMAPS_EMBED_2D3D_PATTERN:
+                        return second, first
+                    return first, second
+                except ValueError:
+                    continue
+
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        for key in ("q", "ll", "destination"):
+            values = query.get(key, [])
+            if not values:
+                continue
+            parts = values[0].split(",")
+            if len(parts) != 2:
+                continue
+            try:
+                return float(parts[0]), float(parts[1])
+            except ValueError:
+                continue
+
+        return None

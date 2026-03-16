@@ -160,5 +160,62 @@ def test_parse_sento_returns_none_when_name_missing(parser: FukushimaParser) -> 
     assert result is None
 
 
+FUKUSHIMA_DETAIL_HTML_NO_ADDRESS = """
+<html><body><h1>住所なし湯</h1></body></html>
+"""
+
+
+def test_parse_sento_returns_none_when_address_missing(parser: FukushimaParser) -> None:
+    result = parser.parse_sento(
+        FUKUSHIMA_DETAIL_HTML_NO_ADDRESS,
+        "https://fukushima1010.com/sento/no-address-yu/",
+    )
+    assert result is None
+
+
+FUKUSHIMA_DETAIL_HTML_IFRAME = """
+<html>
+<body>
+  <h1>磐梯湯</h1>
+  <dl><dt>住所</dt><dd>福島県郡山市1-2-3</dd></dl>
+  <iframe src="https://www.google.com/maps?q=37.4001,140.3801"></iframe>
+</body>
+</html>
+"""
+
+
+def test_parse_sento_extracts_iframe_coords(parser: FukushimaParser) -> None:
+    result = parser.parse_sento(
+        FUKUSHIMA_DETAIL_HTML_IFRAME,
+        "https://fukushima1010.com/sento/bandai-yu/",
+    )
+
+    assert result is not None
+    assert result["lat"] == pytest.approx(37.4001)
+    assert result["lng"] == pytest.approx(140.3801)
+
+
+FUKUSHIMA_DETAIL_HTML_AT_COORDS = """
+<html>
+<body>
+  <h1>会津湯</h1>
+  <dl><dt>住所</dt><dd>福島県会津若松市4-5-6</dd></dl>
+  <a href="https://www.google.com/maps/place/%E4%BC%9A%E6%B4%A5/@37.4947,139.9299,16z">地図</a>
+</body>
+</html>
+"""
+
+
+def test_parse_sento_extracts_at_coords(parser: FukushimaParser) -> None:
+    result = parser.parse_sento(
+        FUKUSHIMA_DETAIL_HTML_AT_COORDS,
+        "https://fukushima1010.com/sento/aizu-yu/",
+    )
+
+    assert result is not None
+    assert result["lat"] == pytest.approx(37.4947)
+    assert result["lng"] == pytest.approx(139.9299)
+
+
 def test_parser_registration_for_fukushima() -> None:
     assert PARSERS["福島県"] is FukushimaParser
