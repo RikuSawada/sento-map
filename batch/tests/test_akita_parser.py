@@ -115,6 +115,55 @@ def test_parse_sento_returns_none_when_name_missing(parser: AkitaParser) -> None
     assert result is None
 
 
+AKITA_DETAIL_HTML_NO_ADDRESS = """
+<html>
+<body>
+  <h1>秋田温泉</h1>
+  <p>住所情報なし</p>
+</body>
+</html>
+"""
+
+
+def test_parse_sento_returns_none_when_address_missing(parser: AkitaParser) -> None:
+    result = parser.parse_sento(AKITA_DETAIL_HTML_NO_ADDRESS, "https://akita-sento.com/sento/no-address/")
+    assert result is None
+
+
+AKITA_DETAIL_HTML_ADDRESS_TAG = """
+<html>
+<body>
+  <h1>川反の湯</h1>
+  <address>秋田県秋田市川反町 1-2-3</address>
+</body>
+</html>
+"""
+
+
+def test_parse_sento_falls_back_to_address_tag(parser: AkitaParser) -> None:
+    result = parser.parse_sento(AKITA_DETAIL_HTML_ADDRESS_TAG, "https://akita-sento.com/sento/kawabata/")
+    assert result is not None
+    assert result["address"] == "秋田県秋田市川反町 1-2-3"
+
+
+AKITA_DETAIL_HTML_IFRAME_Q = """
+<html>
+<body>
+  <h1>土崎の湯</h1>
+  <dl><dt>住所</dt><dd>秋田県秋田市土崎港1-2-3</dd></dl>
+  <iframe src="https://www.google.com/maps?q=39.7501,140.0701"></iframe>
+</body>
+</html>
+"""
+
+
+def test_parse_sento_extracts_coords_from_iframe_q(parser: AkitaParser) -> None:
+    result = parser.parse_sento(AKITA_DETAIL_HTML_IFRAME_Q, "https://akita-sento.com/sento/tsuchizaki/")
+    assert result is not None
+    assert result["lat"] == pytest.approx(39.7501)
+    assert result["lng"] == pytest.approx(140.0701)
+
+
 AKITA_LIST_HTML = """
 <html>
 <body>

@@ -5,7 +5,7 @@
 import logging
 import re
 from typing import Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -33,6 +33,7 @@ _GMAPS_DEST_PATTERN = re.compile(r"[?&]destination=([-\d.]+),([-\d.]+)")
 _GMAPS_LL_PATTERN = re.compile(r"[?&]ll=([-\d.]+),([-\d.]+)")
 _GMAPS_AT_PATTERN = re.compile(r"/@([-\d.]+),([-\d.]+)")
 _GMAPS_EMBED_PATTERN = re.compile(r"!3d([-\d.]+)!.*!4d([-\d.]+)")
+_GMAPS_EMBED_2D3D_PATTERN = re.compile(r"!2d([-\d.]+)!3d([-\d.]+)")
 
 
 class AkitaParser(BaseParser):
@@ -101,8 +102,11 @@ class AkitaParser(BaseParser):
         address = (
             self.extract_label_value(soup, "住所")
             or self.extract_table_value(soup, "住所")
-            or (soup.find("address").get_text(" ", strip=True) if soup.find("address") else "")
+            or (soup.find("address").get_text(" ", strip=True) if soup.find("address") else None)
         )
+        if not address:
+            logger.warning("address が取得できません: %s", page_url)
+            return None
 
         phone = (
             self.extract_label_value(soup, "TEL")
@@ -135,24 +139,9 @@ class AkitaParser(BaseParser):
             href = str(tag["href"])
             if "google." not in href or "/maps" not in href:
                 continue
-            for pat in (
-                _GMAPS_Q_PATTERN,
-                _GMAPS_QUERY_PATTERN,
-                _GMAPS_DEST_PATTERN,
-                _GMAPS_LL_PATTERN,
-                _GMAPS_AT_PATTERN,
-            ):
-                m = pat.search(href)
-                if not m:
-                    continue
-                try:
-                    lat = float(m.group(1))
-                    lng = float(m.group(2))
-                except ValueError:
-                    lat = None
-                    lng = None
-                break
-            if lat is not None:
+            coords = self._extract_coordinates_from_url(href)
+            if coords is not None:
+                lat, lng = coords
                 break
 
         if lat is None:
@@ -160,16 +149,9 @@ class AkitaParser(BaseParser):
                 src = str(iframe["src"])
                 if "google." not in src or "/maps" not in src:
                     continue
-                m = _GMAPS_EMBED_PATTERN.search(src)
-                if not m:
-                    continue
-                try:
-                    lat = float(m.group(1))
-                    lng = float(m.group(2))
-                except ValueError:
-                    lat = None
-                    lng = None
-                if lat is not None:
+                coords = self._extract_coordinates_from_url(src)
+                if coords is not None:
+                    lat, lng = coords
                     break
 
         return self.make_sento_dict(
@@ -183,3 +165,41 @@ class AkitaParser(BaseParser):
             source_url=page_url,
             facility_type="sento",
         )
+
+    def _extract_coordinates_from_url(self, url: str) -> Optional[tuple[float, float]]:
+        for pat in (
+            _GMAPS_Q_PATTERN,
+            _GMAPS_QUERY_PATTERN,
+            _GMAPS_DEST_PATTERN,
+            _GMAPS_LL_PATTERN,
+            _GMAPS_AT_PATTERN,
+            _GMAPS_EMBED_PATTERN,
+            _GMAPS_EMBED_2D3D_PATTERN,
+        ):
+            m = pat.search(url)
+            if not m:
+                continue
+            try:
+                first = float(m.group(1))
+                second = float(m.group(2))
+                if pat is _GMAPS_EMBED_2D3D_PATTERN:
+                    return second, first
+                return first, second
+            except ValueError:
+                continue
+
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        for key in ("q", "ll", "query", "destination"):
+            value = query.get(key, [])
+            if not value:
+                continue
+            parts = value[0].split(",")
+            if len(parts) != 2:
+                continue
+            try:
+                return float(parts[0]), float(parts[1])
+            except ValueError:
+                continue
+
+        return None
